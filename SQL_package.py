@@ -1,5 +1,4 @@
 from __future__ import annotations
-from tkinter import X
 from typing import Optional, Dict, Tuple, List, Iterable, Any, Union
 import os
 import re
