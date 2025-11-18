@@ -617,7 +617,7 @@ def step3():
 
 def main():
     # hard reset
-    if st.button("Reset"):
+    if st.button("Reset SQL demo"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state.current_stage = 0

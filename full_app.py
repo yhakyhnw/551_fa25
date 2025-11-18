@@ -19,7 +19,7 @@ def homepage():
 
 
 def show_sql_demo():
-    st.button("← Back to menu", on_click=lambda: set_page("home"))
+    st.button("Back to home", on_click=lambda: set_page("home"))
 
     if sql_app is None:
         st.error("SQL demo app (sql_app.py) not found.")
