@@ -7,19 +7,21 @@ def homepage():
 
     st.markdown("Select a demo to run:")
 
-    col_sql, col_nosql = st.columns(2)
+    st.subheader("SQL Demo")
+    st.write("Description: This section will run the SQL-based demo for the project.")
 
-    with col_sql:
-        if st.button("SQL demo"):
-            st.session_state.current_page = "sql"
+    st.button("Start SQL Demo", on_click = lambda: set_page("sql"))
 
-    with col_nosql:
-        if st.button("NoSQL demo"):
-            st.session_state.current_page = "nosql"
+    st.markdown("---")
+
+    st.subheader("NoSQL Demo")
+    st.write("Description: This section will run the NoSQL-based demo for the project.")
+
+    st.button("Start NoSQL Demo", on_click = lambda: set_page("nosql"))
 
 
 def show_sql_demo():
-    st.button("Back to home", on_click=lambda: set_page("home"))
+    st.button("Back to home", on_click = lambda: set_page("home"))
 
     if sql_app is None:
         st.error("SQL demo app (sql_app.py) not found.")
@@ -29,7 +31,7 @@ def show_sql_demo():
 
 
 def show_nosql_demo():
-    st.button("← Back to menu", on_click=lambda: set_page("home"))
+    st.button("← Back to menu", on_click = lambda: set_page("home"))
 
     st.title("NoSQL Demo")
     st.write("NoSQL demo coming soon.")
