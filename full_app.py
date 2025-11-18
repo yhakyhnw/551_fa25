@@ -2,7 +2,7 @@ import streamlit as st
 import sql_app
 
 def homepage():
-    st.title("## DSCI 551 Project Demo")
+    st.markdown("## DSCI 551 Project Demo")
     st.markdown("---")
 
     st.markdown("### Select a demo to run:")
