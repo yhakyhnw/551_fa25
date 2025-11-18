@@ -420,6 +420,7 @@ def step3():
     df1 = st.session_state.get("df1")
     df2 = st.session_state.get("df2")
     demo_mode = st.session_state.get("demo_mode")
+    step_results = []
 
     if df1 is None:
         st.error("No Dataset 1 available to run the pipeline.")
@@ -591,17 +592,28 @@ def step3():
             st.markdown("---")
             return
 
-        with st.expander(f"View data after step {step_num}", expanded = False):
-            try:
-                st.code(str(current), language = "text")
-            except Exception:
-                st.write(current)
+        try:
+            snapshot = str(current)
+        except Exception:
+            snapshot = current
+
+        step_results.append((step_num, op, desc_text, snapshot))
 
     st.markdown("#### Final result")
     try:
         st.code(str(current), language = "text")
     except Exception:
         st.code(current, language = "text")
+
+    st.markdown("---")
+    st.markdown("#### Results after each step")
+
+    for step_num, op, desc_text, snapshot in step_results:
+        with st.expander(f"View data after step {step_num}", expanded = False):
+            if isinstance(snapshot, str):
+                st.code(snapshot, language = "text")
+            else:
+                st.write(snapshot)
 
 
 def main():
