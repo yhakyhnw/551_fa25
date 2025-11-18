@@ -353,6 +353,28 @@ def step2():
         st.session_state.pipeline = []
 
     st.markdown("---")
+    st.markdown("#### Configure operations")
+
+    demo_mode = st.session_state.get("demo_mode")
+
+    tab_gb, tab_filt, tab_join, tab_proj = st.tabs(["Group By & Aggregate", "Filter", "Join", "Project"])
+
+    with tab_gb:
+        groupby_agg_params()
+
+    with tab_filt:
+        filter_params()
+
+    with tab_join:
+        if demo_mode != "2 dataset demo (join)":
+            st.warning("Join is only available for the 2 dataset demo (join).")
+        else:
+            join_params()
+
+    with tab_proj:
+        project_params()
+
+    st.markdown("---")
     st.markdown("#### Current pipeline")
     pipeline_diagram()
 
@@ -378,7 +400,7 @@ def step2():
                 if desc_text:
                     st.caption(desc_text)
             with col_b:
-                if st.button("Delete", key=f"delete_step_{step_index}"):
+                if st.button("Delete", key = f"delete_step_{step_index}"):
                     del pipeline[step_index]
                     st.session_state.pipeline = pipeline
                     st.rerun()
@@ -390,28 +412,6 @@ def step2():
     if st.button("Step 3: Run pipeline"):
         st.session_state.current_stage = 2
         st.rerun()
-
-    st.markdown("---")
-    st.markdown("#### Configure operations")
-
-    demo_mode = st.session_state.get("demo_mode")
-
-    tab_gb, tab_filt, tab_join, tab_proj = st.tabs(["Group By & Aggregate", "Filter", "Join", "Project"])
-
-    with tab_gb:
-        groupby_agg_params()
-
-    with tab_filt:
-        filter_params()
-
-    with tab_join:
-        if demo_mode != "2 dataset demo (join)":
-            st.warning("Join is only available for the 2 dataset demo (join).")
-        else:
-            join_params()
-
-    with tab_proj:
-        project_params()
 
 def step3():
     st.markdown("### Step 3: Results Display")
@@ -571,7 +571,6 @@ def step3():
                 st.warning("Projection step has no columns specified; skipping this step.")
                 continue
             try:
-                # PSO.projection can take a single comma-separated string
                 current, step_logs = run_with_capture(current.projection, ",".join(col_list))
                 
             except Exception as e:
