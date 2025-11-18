@@ -8,14 +8,14 @@ def homepage():
     st.markdown("Select a demo to run:")
 
     st.subheader("SQL Demo")
-    st.write("The SQL demo uses a second-hand car data!<br>A dummy dataset is also available for speedy testing!")
+    st.markdown("The SQL demo uses a second-hand car data!<br>A dummy dataset is also available for speedy testing!")
 
     st.button("Start SQL Demo", on_click = lambda: set_page("sql"))
 
     st.markdown("---")
 
     st.subheader("NoSQL Demo")
-    st.write("Description: This section will run the NoSQL-based demo for the project.")
+    st.markdown("The NoSQL demo uses a salary data!")
 
     st.button("Start NoSQL Demo", on_click = lambda: set_page("nosql"))
 
