@@ -616,10 +616,17 @@ def step3():
 
 
 def main():
-    # hard reset
+    # soft reset: only clear SQL‑related state so wrapper navigation (e.g. full_app) is preserved
     if st.button("Reset SQL demo"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        sql_keys = ["demo_mode", "df1", "df2", "df1_source", "df2_source", 
+                    "show_upload_1", "show_upload_2", "parser_encoding", "parser_delimiter", 
+                    "header_Dataset 1", "header_Dataset 2", "pipeline", "current_stage"]
+
+        for state_key in sql_keys:
+            if state_key in st.session_state:
+                del st.session_state[state_key]
+
+        # back to step 1
         st.session_state.current_stage = 0
         st.rerun()
 
