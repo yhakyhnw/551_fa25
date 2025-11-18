@@ -2,10 +2,10 @@ import streamlit as st
 import sql_app
 
 def homepage():
-    st.title("DSCI 551 Project Demo")
+    st.title("## DSCI 551 Project Demo")
     st.markdown("---")
 
-    st.markdown("Select a demo to run:")
+    st.markdown("### Select a demo to run:")
 
     st.subheader("SQL Demo")
     st.markdown("The SQL demo uses a second-hand car data!  \nA dummy dataset is also available for speedy testing!")
