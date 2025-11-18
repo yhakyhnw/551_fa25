@@ -223,7 +223,7 @@ class PSO:
                                 1948, 1920, 2010, 1925, 1911,
                                 1927, 1909, 1911, 2003, 1967,
                                 1903, 1931, 1986, 1933, 1944,
-                                1941, 1916, 1900, 1926, 1948)           }
+                                1941, 1916, 1900, 1926, 1948)}
             return cls(dummy, list(dummy.keys()), encoding = encoding, delimiter = delimiter)
 
         # 2. reject double file and data
