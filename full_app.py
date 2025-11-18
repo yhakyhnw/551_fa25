@@ -31,7 +31,7 @@ def show_sql_demo():
 
 
 def show_nosql_demo():
-    st.button("← Back to menu", on_click = lambda: set_page("home"))
+    st.button("Back to home", on_click = lambda: set_page("home"))
 
     st.title("NoSQL Demo")
     st.write("NoSQL demo coming soon.")
@@ -52,9 +52,7 @@ def main():
     elif current_page == "nosql":
         show_nosql_demo()
     else:
-        # Fallback
         homepage()
-
 
 if __name__ == "__main__":
     main()
