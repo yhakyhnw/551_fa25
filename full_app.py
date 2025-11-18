@@ -20,7 +20,7 @@ def homepage():
     st.button("Start NoSQL Demo", on_click = lambda: set_page("nosql"))
 
 
-def show_sql_demo():
+def sql_demo():
     st.button("Back to home", on_click = lambda: set_page("home"))
 
     if sql_app is None:
@@ -30,7 +30,7 @@ def show_sql_demo():
     sql_app.main()
 
 
-def show_nosql_demo():
+def nosql_demo():
     st.button("Back to home", on_click = lambda: set_page("home"))
 
     st.title("NoSQL Demo")
@@ -48,9 +48,9 @@ def main():
     if current_page == "home":
         homepage()
     elif current_page == "sql":
-        show_sql_demo()
+        sql_demo()
     elif current_page == "nosql":
-        show_nosql_demo()
+        nosql_demo()
     else:
         homepage()
 
