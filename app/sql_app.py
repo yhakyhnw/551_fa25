@@ -1,7 +1,9 @@
 import tempfile
-import io
+import io, os, sys
 import contextlib
 import streamlit as st
+
+sys.path.append(os.path.abspath(os.path.join("..", "packages")))
 from SQL_package import PSO  
 
 
