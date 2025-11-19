@@ -1,7 +1,4 @@
 import streamlit as st
-import sys, os
-
-sys.path.append(os.path.abspath(os.path.join("..", "pages")))
 import sql_app
 
 def homepage():
