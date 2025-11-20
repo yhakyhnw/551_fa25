@@ -634,7 +634,7 @@ class NoSql:
 
         return combined
 
-    def find_arg_parser(self, query):
+    def filter_arg_parser(self, query):
 
         if not isinstance(query, dict):
             raise TypeError("parser expects a dict query")
@@ -702,7 +702,7 @@ class NoSql:
         if not docs:
             return NoSql([])
 
-        tree = self.find_arg_parser(query)
+        tree = self.filter_arg_parser(query)
 
         def _eval_node(node):
             if not isinstance(node, dict):

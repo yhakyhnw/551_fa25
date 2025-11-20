@@ -489,19 +489,10 @@ def step2():
                 st.session_state[key] = ns
                 return ns
 
-        # Fallback: leave as-is and return None to indicate unusable for analysis
         return None
 
     def _ensure_chunk_container(key: str):
-        """
-        Ensure that the object stored under `key` is in a form suitable for nosql_ds_sum
-        to report chunk sizes:
 
-        - If it's a single NoSql (non-chunked), return it as-is.
-        - If it's already a list/tuple of NoSql chunks, return it.
-        - If it's a generator/iterable of NoSql chunks, materialize it into a tuple of
-          chunks, store back into session_state, and return that tuple.
-        """
         obj = st.session_state.get(key)
         if obj is None:
             return None
@@ -554,14 +545,7 @@ def step2():
     st.markdown("---")
     st.markdown("#### Add functions to pipeline (minimum 1 required)")
 
-    tab_gb, tab_filt, tab_join, tab_proj = st.tabs(
-        [
-            "Group By & Aggregate",
-            "Filter",
-            "Join",
-            "Project",
-        ]
-    )
+    tab_gb, tab_filt, tab_join, tab_proj = st.tabs(["Group By & Aggregate", "Filter", "Join", "Project"])
 
     with tab_gb:
         group_by_params()
@@ -608,6 +592,7 @@ def step2():
 
     st.markdown("---")
     st.markdown("#### Dataset sample (preview)")
+    st.markdown("###### Document # are not part of the file, just there for display")
     if ns1 is not None:
         st.markdown("**Dataset 1**")
         st.code(capture_pretty(ns1, dp_lim=3), language="text")
@@ -617,7 +602,6 @@ def step2():
         st.code(capture_pretty(ns2, dp_lim=3), language="text")
 
 def step3():
-    """Step 3: Display results (NoSQL)."""
     st.markdown("### Step 3: Results Display (NoSQL)")
 
     demo_mode = st.session_state.get("nosql_demo_mode")
