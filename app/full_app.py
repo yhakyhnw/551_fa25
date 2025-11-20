@@ -1,5 +1,6 @@
 import streamlit as st
 import sql_app
+import nosql_app
 
 def homepage():
     st.markdown("## DSCI 551 Project Demo")
@@ -33,8 +34,11 @@ def sql_demo():
 def nosql_demo():
     st.button("Back to home", on_click = lambda: set_page("home"))
 
-    st.title("NoSQL Demo")
-    st.write("NoSQL demo coming soon.")
+    if nosql_app is None:
+        st.error("NoSQL demo app (nosql_app.py) not found.")
+        return
+
+    nosql_app.main()
 
 def set_page(page_name: str):
     st.session_state.current_page = page_name

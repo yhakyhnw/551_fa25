@@ -1,6 +1,7 @@
 import tempfile
 import io, os, sys
 import contextlib
+import itertools
 import streamlit as st
 
 base_directory = os.path.dirname(os.path.abspath(__file__))
@@ -84,13 +85,24 @@ def convert_array_to_ndjson(src_path: str) -> str:
         return tmp_file.name
 
 def capture_pretty(ns_obj, dp_lim: int | None = 5) -> str:
-
-    if not isinstance(ns_obj, (list, tuple)) and hasattr(ns_obj, "__iter__"):
+    # Handle generator/iterable preview
+    if not isinstance(ns_obj, (list, tuple)) and hasattr(ns_obj, "__next__"):
+        # Direct generator: take first chunk
         try:
-            ns_obj = tuple(ns_obj)
+            ns_target = next(ns_obj)
+        except StopIteration:
+            return "<empty iterable>"
         except Exception:
-            return "<Unknown data format>"
-    if isinstance(ns_obj, (list, tuple)) and ns_obj and isinstance(ns_obj[0], NoSql):
+            ns_target = ns_obj
+    elif not isinstance(ns_obj, (list, tuple)) and hasattr(ns_obj, "__iter__"):
+        # Iterable but not a direct generator, fall back to iter()
+        try:
+            ns_target = next(iter(ns_obj))
+        except StopIteration:
+            return "<empty iterable>"
+        except Exception:
+            ns_target = ns_obj
+    elif isinstance(ns_obj, (list, tuple)) and ns_obj and isinstance(ns_obj[0], NoSql):
         ns_target = ns_obj[0]
     else:
         ns_target = ns_obj
@@ -110,13 +122,7 @@ def nosql_ds_sum(title, ns_obj):
         st.info("No data loaded.")
         return
 
-    # If chunked generator, convert to tuple for preview only
-    if not isinstance(ns_obj, (list, tuple)) and hasattr(ns_obj, "__iter__"):
-        try:
-            ns_obj = tuple(ns_obj)
-        except Exception:
-            st.write("Unknown data format")
-            return
+    # Removed generator conversion and unknown data format reporting for streaming data.
 
     # Check if chunked data
     if isinstance(ns_obj, (list, tuple)) and ns_obj and isinstance(ns_obj[0], NoSql):
@@ -163,9 +169,10 @@ def nosql_ds_sum(title, ns_obj):
             st.write("No documents found in chunks")
 
     else:
-        # Assume single NoSql instance
+        # Only handle real NoSql instances; ignore anything else (e.g., generators)
+        if not isinstance(ns_obj, NoSql):
+            return
         if not hasattr(ns_obj, 'data') or not isinstance(ns_obj.data, list):
-            st.write("Unknown data format")
             return
         docs = ns_obj.data
         st.write(f"Total documents: {len(docs)}")
@@ -174,7 +181,6 @@ def nosql_ds_sum(title, ns_obj):
             if isinstance(doc, dict):
                 keys_set.update(doc.keys())
             else:
-                st.write("Unknown data format")
                 return
         keys = sorted(keys_set)
         st.write(f"Key fields: {keys}")
@@ -478,7 +484,7 @@ def step1():
         if use_chunk:
             st.number_input(
                 "Chunk size",
-                value=5000,
+                value=50000,
                 min_value=1,
                 step=1,
                 key="nosql_chunk_size",
@@ -495,35 +501,78 @@ def step1():
 
 
 def step2():
-    """Step 2: Combining functions (NoSQL)."""
+    """Step 2: Data Analysis (NoSQL)."""
     st.markdown("### Step 2: Data Analysis (NoSQL)")
-    st.markdown("###### Scroll all the way down to see dataset preview (first 3 docs)")
-
-    st.markdown("---")
-    st.markdown("#### Dataset overview")
 
     demo_mode = st.session_state.get("nosql_demo_mode")
 
-    if demo_mode == "1 dataset demo":
-        ns1 = st.session_state.get("nosql_df1")
-        if ns1 is not None:
-            nosql_ds_sum("Dataset 1", ns1)
-    elif demo_mode == "2 dataset demo (join)":
-        ns1 = st.session_state.get("nosql_df1")
-        ns2 = st.session_state.get("nosql_df2")
-        if ns1 is not None:
-            nosql_ds_sum("Dataset 1", ns1)
-        if ns2 is not None:
-            nosql_ds_sum("Dataset 2", ns2)
+    def _materialize_dataset(key: str):
+        """
+        Ensure that the object stored under `key` is a single NoSql instance.
+
+        - If it's already a NoSql, return it.
+        - If it's a list/tuple of NoSql chunks, merge their `.data` into one NoSql.
+        - If it's an iterable (generator, tee, etc.) yielding NoSql chunks or dict docs,
+          iterate once, merge, and store back as a NoSql.
+        """
+        obj = st.session_state.get(key)
+        if obj is None:
+            return None
+
+        # Already a single NoSql object
+        if isinstance(obj, NoSql):
+            return obj
+
+        # List/tuple of NoSql chunks
+        if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], NoSql):
+            merged_docs = []
+            for chunk in obj:
+                if hasattr(chunk, "data") and isinstance(chunk.data, list):
+                    merged_docs.extend(chunk.data)
+            ns = NoSql(merged_docs)
+            st.session_state[key] = ns
+            return ns
+
+        # Any other iterable (e.g., generator, itertools.tee) of NoSql chunks or dict docs
+        if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
+            merged_docs = []
+            try:
+                for chunk in obj:
+                    if isinstance(chunk, NoSql):
+                        if hasattr(chunk, "data") and isinstance(chunk.data, list):
+                            merged_docs.extend(chunk.data)
+                    elif isinstance(chunk, dict):
+                        merged_docs.append(chunk)
+            except TypeError:
+                # Not actually iterable in the way we expect; fall through
+                pass
+
+            if merged_docs:
+                ns = NoSql(merged_docs)
+                st.session_state[key] = ns
+                return ns
+
+        # Fallback: leave as-is and return None to indicate unusable for analysis
+        return None
+
+    # Materialize datasets for analysis
+    ns1 = _materialize_dataset("nosql_df1")
+    ns2 = _materialize_dataset("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
+
+    st.markdown("#### Dataset overview")
+    if ns1 is not None:
+        nosql_ds_sum("Dataset 1", ns1)
+    if demo_mode == "2 dataset demo (join)" and ns2 is not None:
+        nosql_ds_sum("Dataset 2", ns2)
 
     # Initialize pipeline state if needed
     if "nosql_pipeline" not in st.session_state:
         st.session_state.nosql_pipeline = []
 
+    pipeline = st.session_state.get("nosql_pipeline", [])
+
     st.markdown("---")
     st.markdown("#### Configure operations")
-
-    pipeline = st.session_state.get("nosql_pipeline", [])
 
     tab_gb, tab_filt, tab_join, tab_proj = st.tabs(
         [
@@ -580,81 +629,104 @@ def step2():
         st.rerun()
 
     st.markdown("---")
-    st.markdown("#### Dataset sample")
+    st.markdown("#### Dataset sample (preview)")
+    if ns1 is not None:
+        st.markdown("**Dataset 1**")
+        st.code(capture_pretty(ns1, dp_lim=3), language="text")
 
-    demo_mode = st.session_state.get("nosql_demo_mode")
-
-    if demo_mode == "1 dataset demo":
-        ns1 = st.session_state.get("nosql_df1")
-        if ns1 is not None:
-            st.markdown("**Dataset 1**")
-            text1 = capture_pretty(ns1, dp_lim=5)
-            st.code(text1, language="text")
-
-    elif demo_mode == "2 dataset demo (join)":
-        ns1 = st.session_state.get("nosql_df1")
-        ns2 = st.session_state.get("nosql_df2")
-
-        if ns1 is not None:
-            st.markdown("**Dataset 1**")
-            text1 = capture_pretty(ns1, dp_lim=5)
-            st.code(text1, language="text")
-
-        if ns2 is not None:
-            st.markdown("**Dataset 2**")
-            text2 = capture_pretty(ns2, dp_lim=5)
-            st.code(text2, language="text")
+    if demo_mode == "2 dataset demo (join)" and ns2 is not None:
+        st.markdown("**Dataset 2**")
+        st.code(capture_pretty(ns2, dp_lim=3), language="text")
 
 def step3():
     """Step 3: Display results (NoSQL)."""
     st.markdown("### Step 3: Results Display (NoSQL)")
 
     demo_mode = st.session_state.get("nosql_demo_mode")
-    ns1 = st.session_state.get("nosql_df1")
-    ns2 = st.session_state.get("nosql_df2")
     pipeline = st.session_state.get("nosql_pipeline", [])
 
-    if ns1 is None:
-        st.error("No Dataset 1 available to run the pipeline. Please complete Step 1 first.")
-        return
+    def _normalize_result(obj):
+        """Normalize pipeline step results into a NoSql object when appropriate.
 
-    # Helper: if we were given a list/tuple of NoSql chunks, merge them into a single NoSql
-    def _ensure_nosql(obj):
+        - If it's already a NoSql, return it.
+        - If it's a list of dicts, wrap in NoSql.
+        - Otherwise, return as-is.
+        """
         if isinstance(obj, NoSql):
             return obj
+        if isinstance(obj, list) and obj and isinstance(obj[0], dict):
+            return NoSql(obj)
+        return obj
+
+    def _materialize_dataset(key: str):
+        """
+        Ensure that the object stored under `key` is a single NoSql instance.
+
+        - If it's already a NoSql, return it.
+        - If it's a list/tuple of NoSql chunks, merge their `.data` into one NoSql.
+        - If it's an iterable (generator, tee, etc.) yielding NoSql chunks or dict docs,
+          iterate once, merge, and store back as a NoSql.
+        """
+        obj = st.session_state.get(key)
+        if obj is None:
+            return None
+
+        if isinstance(obj, NoSql):
+            return obj
+
         if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], NoSql):
             merged_docs = []
             for chunk in obj:
                 if hasattr(chunk, "data") and isinstance(chunk.data, list):
                     merged_docs.extend(chunk.data)
-            return NoSql(merged_docs)
-        return obj
+            ns = NoSql(merged_docs)
+            st.session_state[key] = ns
+            return ns
 
-    current = _ensure_nosql(ns1)
+        if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
+            merged_docs = []
+            try:
+                for chunk in obj:
+                    if isinstance(chunk, NoSql):
+                        if hasattr(chunk, "data") and isinstance(chunk.data, list):
+                            merged_docs.extend(chunk.data)
+                    elif isinstance(chunk, dict):
+                        merged_docs.append(chunk)
+            except TypeError:
+                pass
 
-    if not isinstance(current, NoSql):
-        st.error("Loaded Dataset 1 is not a valid NoSql object.")
+            if merged_docs:
+                ns = NoSql(merged_docs)
+                st.session_state[key] = ns
+                return ns
+
+        return None
+
+    ns1 = _materialize_dataset("nosql_df1")
+    ns2 = _materialize_dataset("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
+
+    if ns1 is None or not isinstance(ns1, NoSql):
+        st.error("Dataset 1 is not available or not a valid NoSql object. Please complete Step 1.")
         return
 
     if not pipeline:
         st.info("Pipeline is empty. Showing Dataset 1 as the final result.")
         st.markdown("---")
         st.markdown("#### Final result (Dataset 1, pretty-printed)")
-        text = capture_pretty(current, dp_lim=5)
-        st.code(text, language="text")
+        st.code(capture_pretty(ns1, dp_lim=5), language="text")
 
         if demo_mode == "2 dataset demo (join)" and ns2 is not None:
             st.markdown("---")
             st.markdown("#### Dataset 2 sample (pretty-printed)")
-            text2 = capture_pretty(_ensure_nosql(ns2), dp_lim=5)
-            st.code(text2, language="text")
+            st.code(capture_pretty(ns2, dp_lim=5), language="text")
         return
 
     st.markdown("#### Current pipeline")
     nosql_pipeline_diagram()
     st.markdown("---")
 
-    # Run the pipeline step by step
+    current = ns1
+
     for step_index, step in enumerate(pipeline, start=1):
         op_label, desc_text = nosql_step_desc(step)
         if not op_label:
@@ -689,14 +761,12 @@ def step3():
                     if agg_dict:
                         agg_param = agg_dict
 
-                # If no aggregation spec was given, default to a simple count per group
                 if agg_param is None:
                     agg_param = {"*": ["count"]}
 
-                # NoSql.aggregate should itself handle internal chunk-merging if needed
                 result = current.aggregate(group_fields or None, agg_param)
+                current = _normalize_result(result)
 
-            # filter
             elif op == "filter":
                 expr_raw = step.get("expr", "")
                 if not expr_raw.strip():
@@ -708,20 +778,15 @@ def step3():
                 except Exception:
                     raise ValueError("Invalid filter expression: must be a Python-style dict")
                 result = current.filter(expr)
+                current = _normalize_result(result)
 
-            # join
             elif op == "join":
                 if demo_mode != "2 dataset demo (join)":
                     st.warning("Join step ignored because demo mode is not '2 dataset demo (join)'.")
                     continue
 
-                if ns2 is None:
-                    st.error("Join requested but Dataset 2 is not available.")
-                    return
-
-                ns2_merged = _ensure_nosql(ns2)
-                if not isinstance(ns2_merged, NoSql):
-                    st.error("Loaded Dataset 2 is not a valid NoSql object.")
+                if ns2 is None or not isinstance(ns2, NoSql):
+                    st.error("Join requested but Dataset 2 is not available or not a valid NoSql object.")
                     return
 
                 left_on = step.get("left_on", "")
@@ -731,15 +796,14 @@ def step3():
                     st.error("Join step missing 'local_field' (left_on).")
                     return
 
-                # Assume NoSql.join signature: join(from_field, local_field, foreign_field, as_field, join_type=...)
                 result = current.join(
-                    from_field = ns2_merged,
-                    local_field = left_on,
-                    foreign_field = right_on or left_on,
-                    as_field = "joined",
+                    from_field=ns2,
+                    local_field=left_on,
+                    foreign_field=right_on or left_on,
+                    as_field="joined",
                 )
+                current = _normalize_result(result)
 
-            # projection
             elif op == "project":
                 cols_str = step.get("columns", "")
                 fields = [c.strip() for c in cols_str.split(",") if c.strip()]
@@ -748,25 +812,27 @@ def step3():
                     continue
                 proj_dict = {name: 1 for name in fields}
                 result = current.project(proj_dict)
+                current = _normalize_result(result)
 
             else:
                 st.warning(f"Unknown operation '{op}' encountered; skipping.")
                 continue
 
-            current = result
-
         except Exception as error:
             st.error(f"Error at step {step_index} ({op}): {error}")
             st.markdown("---")
             st.markdown("#### Partial result up to error (pretty-printed)")
-            text_err = capture_pretty(current, dp_lim=5)
-            st.code(text_err, language="text")
+            st.code(capture_pretty(current, dp_lim=5), language="text")
             return
 
-    # Show final result after successfully running all steps
     st.markdown("#### Final result (pretty-printed)")
-    text_final = capture_pretty(current, dp_lim=5)
-    st.code(text_final, language="text")
+
+    # If result is a list of dicts, wrap in NoSql so pretty_print_nosql can format it nicely
+    pretty_target = current
+    if isinstance(current, list) and current and isinstance(current[0], dict):
+        pretty_target = NoSql(current)
+
+    st.code(capture_pretty(pretty_target, dp_lim=None), language="text")
 
 
 def main():
