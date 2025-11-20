@@ -849,20 +849,10 @@ def main():
 
     # soft reset
     if st.button("Reset NoSQL demo"):
-        nosql_keys = [
-            "nosql_demo_mode", "nosql_df1", "nosql_df2",
-            "nosql_df1_source", "nosql_df2_source",
-            "nosql_show_upload_1", "nosql_show_upload_2",
-            "nosql_current_stage",
-            "nosql_use_chunk", "nosql_chunk_size",
-            "nosql_pipeline",
-            "nosql_groupby_cols_input",
-            "nosql_groupby_agg_input",
-            "nosql_filter_expr_input",
-            "nosql_join_left_on_input",
-            "nosql_join_right_on_input",
-            "nosql_project_cols_input",
-        ]
+        nosql_keys = ["nosql_demo_mode", "nosql_df1", "nosql_df2", "nosql_df1_source", "nosql_df2_source",
+                      "nosql_show_upload_1", "nosql_show_upload_2", "nosql_current_stage",
+                      "nosql_use_chunk", "nosql_chunk_size", "nosql_pipeline", "nosql_groupby_cols_input", "nosql_groupby_agg_input",
+                      "nosql_filter_expr_input", "nosql_join_left_on_input", "nosql_join_right_on_input", "nosql_project_cols_input"]
 
         for state_key in nosql_keys:
             if state_key in st.session_state:
@@ -872,20 +862,22 @@ def main():
         st.session_state.nosql_current_stage = 0
         st.rerun()
 
-    if "nosql_current_stage" not in st.session_state:
-        st.session_state.nosql_current_stage = 0
-
-    stages = ["Data Upload", "Data Analysis", "Results Display"]
-    current_stage = st.session_state.nosql_current_stage
-    progress_value = (current_stage + 1) / len(stages)
-
+    #title
     st.markdown("# Analysis of Data Science Related Salary Around the World")
     st.markdown("### DSCI 551 Project (NoSQL)")
     st.markdown("---")
 
+    if "nosql_current_stage" not in st.session_state:
+        st.session_state.nosql_current_stage = 0
+
+    stages = ["Data Upload", "Function Pipeline Design", "Results Display"]
+    current_stage = st.session_state.nosql_current_stage
+    progress_value = (current_stage + 1) / len(stages)
+
     st.progress(progress_value)
     st.markdown(f"**Stage {current_stage + 1} of {len(stages)}: {stages[current_stage]}**")
 
+    # run it again!!!!!
     if current_stage == 0:
         step1()
     elif current_stage == 1:

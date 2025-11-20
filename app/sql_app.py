@@ -644,7 +644,7 @@ def step3():
 
 
 def main():
-    # soft reset: only clear SQL‑related state so wrapper navigation (e.g. full_app) is preserved
+
     if st.button("Reset SQL demo"):
         sql_keys = ["demo_mode", "df1", "df2", "df1_source", "df2_source", 
                     "show_upload_1", "show_upload_2", "parser_encoding", "parser_delimiter", 
@@ -663,11 +663,10 @@ def main():
     st.markdown("### DSCI 551 Project (SQL)")
     st.markdown("---")
 
-    # progress bar
     if "current_stage" not in st.session_state:
         st.session_state.current_stage = 0
 
-    stages = ["Data Upload", "Data Analysis", "Data Projection"]
+    stages = ["Data Upload", "Function Pipeline Design", "Results Display"]
     current_stage = st.session_state.current_stage
     progress_value = (current_stage + 1) / len(stages)
 
