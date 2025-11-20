@@ -766,7 +766,7 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
                     lines.append(f"{inner_indent}{key}:")
                     nested_block = _pretty_value(val, indent_level + indent_spaces)
                     nested_lines = nested_block.split("\n")
-                    # Add comma to last nested line if not last field
+
                     if not is_last and nested_lines:
                         nested_lines[-1] = nested_lines[-1] + ","
                     lines.extend(nested_lines)
@@ -777,7 +777,7 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
                     lines.append(line)
 
             lines.append(base_indent + "}")
-            return "\n".join(lines)
+            return ",".join(lines)
 
         if isinstance(value, list):
             if not value:
@@ -800,7 +800,7 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
                     lines.append(line)
 
             lines.append(base_indent + "]")
-            return "\n".join(lines)
+            return ",".join(lines)
 
         return base_indent + repr(value)
 
