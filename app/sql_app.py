@@ -228,56 +228,6 @@ def step1():
         if src2:
             st.info(f"Dataset 2: {src2}")
 
-def pipeline_diagram():
-    pipeline = st.session_state.get("pipeline", [])
-    demo_mode = st.session_state.get("demo_mode")
-
-    if demo_mode == "2 dataset demo (join)":
-        base = "Dataset 1 (+ Dataset 2)"
-    else:
-        base = "Dataset 1"
-
-    if not pipeline:
-        st.write(base)
-        return
-
-    labels = []
-    for step in pipeline:
-        op = step.get("op")
-        params = []
-
-        if op == "groupby_agg":
-            if step.get("group_cols"):
-                params.append(f"group_by={step['group_cols']}")
-            if step.get("agg_spec"):
-                params.append(f"agg={step['agg_spec']}")
-
-        elif op == "filter":
-            if step.get("expr"):
-                params.append(f"expr={step['expr']}")
-
-        elif op == "join":
-            if step.get("left_on"):
-                params.append(f"left_on={step['left_on']}")
-            if step.get("right_on"):
-                params.append(f"right_on={step['right_on']}")
-            if step.get("join_type"):
-                params.append(f"type={step['join_type']}")
-
-        elif op == "project":
-            if step.get("columns"):
-                params.append(f"cols={step['columns']}")
-
-        if params:
-            label = f"{op}({', '.join(params)})"
-        else:
-            label = op
-
-        labels.append(label)
-
-    diagram = base + "  ➜  " + "  ➜  ".join(labels)
-    st.write(diagram)
-
 def groupby_agg_params():
     st.markdown("##### Configure group by + aggregate")
     
@@ -383,7 +333,6 @@ def step2():
 
     st.markdown("---")
     st.markdown("#### Current pipeline")
-    pipeline_diagram()
 
     # make sure join is used for 2 dataset demo
     demo_mode = st.session_state.get("demo_mode")

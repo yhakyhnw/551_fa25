@@ -591,7 +591,7 @@ def step2():
         st.rerun()
 
     st.markdown("---")
-    st.markdown("#### Dataset sample (preview)")
+    st.markdown("#### Dataset Preview (first 3)")
     st.markdown("###### 'Document #' is not part of the file, just there for display")
     if ns1 is not None:
         st.markdown("**Dataset 1**")
