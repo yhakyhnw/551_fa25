@@ -199,12 +199,10 @@ def nosql_step_desc(step):
             desc_parts.append(f"expr = {expr_str}")
 
     elif op_label == "join":
-        left_on_str = step.get("left_on", "")
-        right_on_str = step.get("right_on", "")
-        if left_on_str:
-            desc_parts.append(f"local_field = {left_on_str}")
-        if right_on_str:
-            desc_parts.append(f"foreign_field = {right_on_str}")
+        # New: single join key, but keep backward compatibility with left_on/right_on
+        key_str = step.get("on", "") or step.get("left_on", "")
+        if key_str:
+            desc_parts.append(f"key = {key_str}")
 
 
     elif op_label == "project":
@@ -245,10 +243,10 @@ def nosql_pipeline_diagram():
                 params.append(f"expr={step['expr']}")
 
         elif op == "join":
-            if step.get("left_on"):
-                params.append(f"local_field={step['left_on']}")
-            if step.get("right_on"):
-                params.append(f"foreign_field={step['right_on']}")
+            # New: single join key, but keep backward compatibility
+            key = step.get("on") or step.get("left_on")
+            if key:
+                params.append(f"key={key}")
 
 
         elif op == "project":
@@ -308,11 +306,9 @@ def filter_params():
 def join_params():
     st.markdown("##### Configure join")
 
-    left_on = st.text_input(
-        "Local field (Dataset 1)", key="nosql_join_left_on_input"
-    )
-    right_on = st.text_input(
-        "Foreign field (Dataset 2)", key="nosql_join_right_on_input"
+    join_key = st.text_input(
+        "Join field (must exist in both Dataset 1 and Dataset 2)",
+        key="nosql_join_key_input",
     )
 
     if st.button("Confirm join", key="nosql_confirm_join"):
@@ -322,8 +318,7 @@ def join_params():
         st.session_state.nosql_pipeline.append(
             {
                 "op": "join",
-                "left_on": left_on,
-                "right_on": right_on,
+                "on": join_key,
             }
         )
         st.success("Added join to NoSQL pipeline.")
@@ -373,7 +368,7 @@ def data_load(label, df_key, upload_flag_key):
 
     col_dummy, col_upload = st.columns(2)
 
-    # --- Use sample dataset (read_dummy) ---
+    # dummy
     if col_dummy.button("Use sample data", key=f"use_sample_{df_key}"):
         try:
             if use_chunk and chunk_size_value is not None:
@@ -381,18 +376,13 @@ def data_load(label, df_key, upload_flag_key):
             else:
                 loaded = NoSql.read_dummy()
 
-            # NORMALISE: after this branch, st.session_state[df_key]
-            # is either a NoSql (no chunking) or a list/tuple/generator of NoSql chunks (chunking).
             if use_chunk:
-                # Expect an iterable of chunked NoSql objects
                 if isinstance(loaded, NoSql):
-                    # Single NoSql returned; wrap as one "chunk"
                     loaded = (loaded,)
-                # Leave generator untouched (Option A: true streaming)
+
                 elif not isinstance(loaded, (list, tuple)):
                     pass
             else:
-                # Expect a single NoSql; if iterable of docs, wrap
                 if not isinstance(loaded, NoSql):
                     loaded = NoSql(list(loaded))
 
@@ -405,7 +395,7 @@ def data_load(label, df_key, upload_flag_key):
         except Exception as error:
             st.error(f"Error loading sample dataset: {error}")
 
-    # --- Upload JSON file ---
+    # upload json
     if col_upload.button("Upload JSON", key=f"upload_btn_{df_key}"):
         st.session_state[upload_flag_key] = True
 
@@ -436,11 +426,10 @@ def data_load(label, df_key, upload_flag_key):
                     else:
                         loaded = NoSql.read_json(ndjson_path)
 
-                    # NORMALISE here too
                     if use_chunk:
                         if isinstance(loaded, NoSql):
                             loaded = (loaded,)
-                        # Leave generator untouched (Option A: true streaming)
+
                         elif not isinstance(loaded, (list, tuple)):
                             pass
                     else:
@@ -459,7 +448,7 @@ def data_load(label, df_key, upload_flag_key):
 
 
 def step1():
-    """Step 1: Data choosing with parameters (NoSQL)."""
+
     st.markdown("### Step 1: Data Upload (NoSQL)")
     if "nosql_demo_mode" not in st.session_state:
         st.session_state.nosql_demo_mode = None
@@ -503,14 +492,6 @@ def step2():
     demo_mode = st.session_state.get("nosql_demo_mode")
 
     def _materialize_dataset(key: str):
-        """
-        Ensure that the object stored under `key` is a single NoSql instance.
-
-        - If it's already a NoSql, return it.
-        - If it's a list/tuple of NoSql chunks, merge their `.data` into one NoSql.
-        - If it's an iterable (generator, tee, etc.) yielding NoSql chunks or dict docs,
-          iterate once, merge, and store back as a NoSql.
-        """
         obj = st.session_state.get(key)
         if obj is None:
             return None
@@ -551,15 +532,58 @@ def step2():
         # Fallback: leave as-is and return None to indicate unusable for analysis
         return None
 
-    # Materialize datasets for analysis
-    ns1 = _materialize_dataset("nosql_df1")
-    ns2 = _materialize_dataset("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
+    def _ensure_chunk_container(key: str):
+        """
+        Ensure that the object stored under `key` is in a form suitable for nosql_ds_sum
+        to report chunk sizes:
+
+        - If it's a single NoSql (non-chunked), return it as-is.
+        - If it's already a list/tuple of NoSql chunks, return it.
+        - If it's a generator/iterable of NoSql chunks, materialize it into a tuple of
+          chunks, store back into session_state, and return that tuple.
+        """
+        obj = st.session_state.get(key)
+        if obj is None:
+            return None
+
+        # Single NoSql (non-chunked)
+        if isinstance(obj, NoSql):
+            return obj
+
+        # Already a list/tuple of chunks
+        if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], NoSql):
+            return obj
+
+        # Generator or other iterable of NoSql chunks
+        if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
+            chunks = []
+            try:
+                for chunk in obj:
+                    chunks.append(chunk)
+            except TypeError:
+                # Not iterable in the way we expect; fall through
+                return obj
+
+            if chunks:
+                # Store back as an immutable tuple of chunks
+                st.session_state[key] = tuple(chunks)
+                return st.session_state[key]
+
+        return obj
+
+    # Prepare objects for dataset overview (preserve chunk structure if present)
+    overview1 = _ensure_chunk_container("nosql_df1")
+    overview2 = _ensure_chunk_container("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
 
     st.markdown("#### Dataset overview")
-    if ns1 is not None:
-        nosql_ds_sum("Dataset 1", ns1)
-    if demo_mode == "2 dataset demo (join)" and ns2 is not None:
-        nosql_ds_sum("Dataset 2", ns2)
+    if overview1 is not None:
+        nosql_ds_sum("Dataset 1", overview1)
+    if demo_mode == "2 dataset demo (join)" and overview2 is not None:
+        nosql_ds_sum("Dataset 2", overview2)
+
+    # Materialize datasets for analysis (merge all chunks into single NoSql)
+    ns1 = _materialize_dataset("nosql_df1")
+    ns2 = _materialize_dataset("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
 
     # Initialize pipeline state if needed
     if "nosql_pipeline" not in st.session_state:
@@ -785,17 +809,17 @@ def step3():
                     st.error("Join requested but Dataset 2 is not available or not a valid NoSql object.")
                     return
 
-                left_on = step.get("left_on", "")
-                right_on = step.get("right_on", "")
+                # New: single join key, but accept legacy left_on if present
+                join_key = (step.get("on") or step.get("left_on", "")).strip()
 
-                if not left_on.strip():
-                    st.error("Join step missing 'local_field' (left_on).")
+                if not join_key:
+                    st.error("Join step missing join key.")
                     return
 
                 result = current.join(
                     from_field=ns2,
-                    local_field=left_on,
-                    foreign_field=right_on or left_on,
+                    local_field=join_key,
+                    foreign_field=join_key,
                     as_field="joined",
                 )
                 current = _normalize_result(result)
@@ -821,7 +845,7 @@ def step3():
             st.code(capture_pretty(current, dp_lim=5), language="text")
             return
 
-    st.markdown("#### Final result (pretty-printed)")
+    st.markdown("#### Final result")
 
     # If result is a list of dicts, wrap in NoSql so pretty_print_nosql can format it nicely
     pretty_target = current
@@ -852,7 +876,7 @@ def main():
         nosql_keys = ["nosql_demo_mode", "nosql_df1", "nosql_df2", "nosql_df1_source", "nosql_df2_source",
                       "nosql_show_upload_1", "nosql_show_upload_2", "nosql_current_stage",
                       "nosql_use_chunk", "nosql_chunk_size", "nosql_pipeline", "nosql_groupby_cols_input", "nosql_groupby_agg_input",
-                      "nosql_filter_expr_input", "nosql_join_left_on_input", "nosql_join_right_on_input", "nosql_project_cols_input"]
+                      "nosql_filter_expr_input", "nosql_join_key_input", "nosql_project_cols_input"]
 
         for state_key in nosql_keys:
             if state_key in st.session_state:

@@ -642,7 +642,6 @@ def step3():
             else:
                 st.write(snapshot)
 
-
 def main():
 
     if st.button("Reset SQL demo"):
