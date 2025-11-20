@@ -551,7 +551,7 @@ def step2():
     pipeline = st.session_state.get("nosql_pipeline", [])
 
     st.markdown("---")
-    st.markdown("#### Configure operations")
+    st.markdown("#### Add functions to pipeline (minimum 1 required)")
 
     tab_gb, tab_filt, tab_join, tab_proj = st.tabs(
         [
