@@ -777,7 +777,7 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
                     lines.append(line)
 
             lines.append(base_indent + "}")
-            return ",".join(lines)
+            return "\n".join(lines)
 
         if isinstance(value, list):
             if not value:
@@ -800,7 +800,7 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
                     lines.append(line)
 
             lines.append(base_indent + "]")
-            return ",".join(lines)
+            return "\n".join(lines)
 
         return base_indent + repr(value)
 
