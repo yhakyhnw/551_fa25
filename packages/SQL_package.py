@@ -284,7 +284,7 @@ class PSO:
     
         cols = list(self.data.keys())
         num_rows = len(next(iter(self.data.values())))
-        display_limit = 50
+        display_limit = 20
     
         rows = []
         for i in range(num_rows):

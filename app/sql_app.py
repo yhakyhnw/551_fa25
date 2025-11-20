@@ -11,20 +11,19 @@ sys.path.append(packages_directory)
 
 from SQL_package import PSO  
 
-
 def ds_sum(title, df):
     st.markdown(f"#### {title}:")
     headers = list(df.data.keys())
+    n_cols = len(headers)
 
     if df.data:
         n_rows = len(list(df.data.values())[0])
     else:
         n_rows = 0
 
+    st.write(f"Column count: {n_cols},\nRow count: {n_rows}")
     st.write(f"Columns: {headers}")
-    st.write(f"Rows: {n_rows}")
-
-
+    
 def step_desc(step):
     op_label = step.get("op", "")
 
@@ -348,6 +347,7 @@ def project_params():
 
 def step2():
     st.markdown("### Step 2: Data Analysis")
+    st.markdown("###### Scroll all the way down to see dataset preview (first 20 rows)")
 
     # show dataset info
     if "df1" in st.session_state and st.session_state.df1 is not None:
@@ -419,6 +419,27 @@ def step2():
     if st.button("Step 3: Run pipeline"):
         st.session_state.current_stage = 2
         st.rerun()
+
+    # preview 
+    st.markdown("---")
+    st.markdown("#### Dataset sample")
+    demo_mode = st.session_state.get("demo_mode")
+
+    if demo_mode == "1 dataset demo":
+        df1 = st.session_state.get("df1")
+        if df1 is not None:
+            st.code(str(df1), language = "text")
+
+    elif demo_mode == "2 dataset demo (join)":
+        df1 = st.session_state.get("df1")
+        df2 = st.session_state.get("df2")
+
+        if df1 is not None:
+            st.markdown("**Dataset 1**")
+            st.code(str(df1), language = "text")
+        if df2 is not None:
+            st.markdown("**Dataset 2**")
+            st.code(str(df2), language = "text")
 
 def step3():
     st.markdown("### Step 3: Results Display")
