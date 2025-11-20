@@ -1,4 +1,52 @@
 
+
+# Safe optional import for tqdm
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # fallback if tqdm is not installed
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
+
+# Helper functions for coercing string values to numbers
+def _coerce_scalar(value):
+    """
+    Convert numeric-looking strings to int/float.
+    Leave everything else unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+
+    s = value.strip()
+    if not s:
+        return value
+
+    # Try int (handles +123, -123, 0, etc.)
+    sign_idx = 0
+    if s[0] in "+-":
+        sign_idx = 1
+
+    if sign_idx < len(s) and s[sign_idx:].isdigit():
+        try:
+            return int(s)
+        except ValueError:
+            return value
+
+    # Try float (handles 12.34, -0.5, 1e6, etc.)
+    try:
+        float_val = float(s)
+        return float_val
+    except ValueError:
+        return value
+
+
+def _coerce_doc(doc):
+    """
+    Apply _coerce_scalar to every value in a dict.
+    """
+    if not isinstance(doc, dict):
+        return doc
+    return {key: _coerce_scalar(val) for key, val in doc.items()}
+
 class NoSql:
     def __init__(self, data = None):
         
@@ -13,14 +61,19 @@ class NoSql:
         
         # chunk data
         elif isinstance(data, list):
-            if not all(isinstance(d, dict) for d in data):
-                raise TypeError("Data must be a list of dicts")
-            self.data = data
+            if all(isinstance(d, dict) for d in data):
+                self.data = data
+            elif all(isinstance(d, list) for d in data):
+                self.data = data
+            elif all(isinstance(d, NoSql) for d in data):
+                self.data = data
+            else:
+                raise TypeError("Data list elements must be dicts, lists of dicts, or NoSql chunks")
         else:
-            raise TypeError("Data must be a dict or a list of dicts")
+            raise TypeError("Data must be a dict or a compatible list (dicts, lists of dicts, or NoSql chunks)")
 
     def __repr__(self):
-        return f"NoSql(n_docts={len(self.data)})"
+        return f"NoSql(n_docs={len(self.data)})"
 
     def __getitem__(self, keys=None):
         if keys is None:
@@ -35,12 +88,12 @@ class NoSql:
         return self.project({k: 1 for k in fields})
 
     def project(self, keys) -> "NoSql":
-        
+        docs = self._ensure_flat_docs(self.data)
         if not isinstance(keys, dict):
             raise TypeError("Projection keys must be a dict")
         if not keys:
-            return NoSql(self.data)
-        if len(self.data) == 0:
+            return NoSql(docs)
+        if len(docs) == 0:
             return NoSql([])
 
         vals = set(keys.values())
@@ -56,11 +109,11 @@ class NoSql:
 
         projected = []
         if is_inclusive:
-            for doc in self.data:
+            for doc in docs:
                 subset = {k: v for k, v in doc.items() if k in list(keys.keys())}
                 projected.append(subset)
         else:
-            for doc in self.data:
+            for doc in docs:
                 subset = {k: v for k, v in doc.items() if k not in list(keys.keys())}
                 projected.append(subset)
         return NoSql(projected)
@@ -68,13 +121,12 @@ class NoSql:
     @classmethod
     def read_json(cls, filepath: str, chunk_size: int | None = None):
         if chunk_size is None:
-            return cls._read_all(filepath)
-
+            return cls._read_json_all(filepath)
+        
         if not isinstance(chunk_size, int) or chunk_size <= 0:
             raise ValueError("chunk_size must be a positive integer")
-
-        # Return a generator 
-        return cls._read_chunk(filepath, chunk_size)
+        
+        return cls._read_json_chunks(filepath, chunk_size)
 
     @classmethod
     def read_dummy(cls, chunk_size: int | None = None):
@@ -95,13 +147,14 @@ class NoSql:
         return _gen()
 
     @classmethod
-    def _read_all(cls, filepath: str) -> "NoSql":
+    def _read_json_all(cls, filepath: str) -> "NoSql":
         with open(filepath, "r", encoding="utf-8") as f:
             text = f.read().strip()
 
         # Case 1: JSON array of dicts
         if text.startswith('['):
             arr, rest = cls._parse_list(text)
+            arr = [_coerce_doc(d) for d in arr]
             if rest.strip():
                 raise ValueError("Extra data after JSON array")
             if not all(isinstance(d, dict) for d in arr):
@@ -119,7 +172,7 @@ class NoSql:
             obj, rest = cls._parse_object(line)
             if rest.strip():
                 raise ValueError(f"Line {i}: Extra content after JSON object")
-            docs.append(obj)
+            docs.append(_coerce_doc(obj))
 
         if not docs:
             raise ValueError("File is empty or not valid NDJSON/array format")
@@ -127,7 +180,7 @@ class NoSql:
         return cls(docs)
 
     @classmethod
-    def _read_chunk(cls, filepath: str, chunk_size: int) -> "NoSql":
+    def _read_json_chunks(cls, filepath: str, chunk_size: int) -> "NoSql":
         with open(filepath, "r", encoding="utf-8") as f:
             start = f.read(1024)
             if not start:
@@ -137,15 +190,21 @@ class NoSql:
 
         # Case 1: JSON array of dicts
         if first == '[':
-            all_ns = cls._read_all(filepath)   # NoSql([...])
+            all_ns = cls._read_json_all(filepath)   # NoSql([...])
             data = all_ns.data
-            for i in range(0, len(data), chunk_size):
-                yield NoSql(data[i:i + chunk_size])
+            total_docs = len(data)
+            for start_index in tqdm(
+                range(0, total_docs, chunk_size),
+                desc="Chunking JSON array",
+                unit="chunk",
+            ):
+                yield NoSql(data[start_index:start_index + chunk_size])
+        
         # Case 2: newline-delimited JSON
         else:
             batch = []
             with open(filepath, "r", encoding="utf-8") as f:
-                for i, line in enumerate(f, 1):
+                for i, line in enumerate(tqdm(f, desc="Reading JSON (NDJSON)", unit="line"), 1):
                     line = line.strip()
                     if not line:
                         continue
@@ -154,7 +213,7 @@ class NoSql:
                     obj, rest = cls._parse_object(line)
                     if rest.strip():
                         raise ValueError(f"Line {i}: Extra content after JSON object")
-                    batch.append(obj)
+                    batch.append(_coerce_doc(obj))
                     if len(batch) == chunk_size:
                         yield NoSql(batch)
                         batch = []
@@ -443,26 +502,24 @@ class NoSql:
         return result
 
     @classmethod
-    def find_auto(cls, source, query):
+    def filter_auto(cls, source, query):
 
-        # Case 1: single NoSql object
         if isinstance(source, NoSql):
-            return source.find(query)
+            return source.filter(query)
 
-        # Case 2: iterable of NoSql chunks (e.g., generator from read_json)
         def _generator():
             for chunk in source:
                 if not isinstance(chunk, NoSql):
-                    raise TypeError("find_auto iterable must yield NoSql objects")
-                yield chunk.find(query)
+                    raise TypeError("filter_auto iterable must yield NoSql objects")
+                yield chunk.filter(query)
 
         return _generator()
     
-    def single_find(self, key, condition, chain = False):
+    def single_filter(self, key, condition, chain = False):
         if not isinstance(key, str):
-            raise TypeError("single_find key must be a string")
+            raise TypeError("single_filter key must be a string")
         if not key:
-            raise ValueError("single_find key must be a non-empty string")
+            raise ValueError("single_filter key must be a non-empty string")
 
         docs = self._ensure_flat_docs(self.data)
         if not docs:
@@ -511,7 +568,7 @@ class NoSql:
                     raise TypeError("$nin expects a list/tuple/set of values")
                 return doc_val not in val
 
-            raise ValueError(f"Unsupported operator in single_find: {op}")
+            raise ValueError(f"Unsupported operator in single_filter: {op}")
 
         matched_indexes = set()
 
@@ -628,7 +685,7 @@ class NoSql:
         return _parse_node(query)
 
 
-    def find(self, query) -> "NoSql":
+    def filter(self, query) -> "NoSql":
 
         docs = self._ensure_flat_docs(self.data)
         if not docs:
@@ -645,7 +702,7 @@ class NoSql:
             if node_type == "leaf":
                 key = node.get("key")
                 condition = node.get("condition")
-                return self.single_find(key, condition, chain = True)
+                return self.single_filter(key, condition, chain = True)
 
             if node_type == "op":
                 op_name = node.get("op")
@@ -676,7 +733,7 @@ class NoSql:
         return NoSql(out_docs)
 
 
-def pretty_print_nosql(ns_obj, indent_spaces: int = 4):
+def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None):
 
     if not isinstance(ns_obj, NoSql):
         raise TypeError("pretty_print_nosql expects a NoSql object")
@@ -736,7 +793,20 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4):
 
         return base_indent + repr(value)
 
-    for doc_index, doc in enumerate(ns_obj.data, 1):
+    # Determine which docs to print
+    if ns_obj.data and all(isinstance(chunk, NoSql) for chunk in ns_obj.data):
+        first_chunk = ns_obj.data[0]
+        if not isinstance(first_chunk, NoSql):
+            raise TypeError("First chunk is not a NoSql object")
+        if not isinstance(first_chunk.data, list) or not all(isinstance(d, dict) for d in first_chunk.data):
+            raise TypeError("First chunk's data is not a list of dicts")
+        docs_to_iter = first_chunk.data
+    else:
+        docs_to_iter = ns_obj.data
+
+    for doc_index, doc in enumerate(docs_to_iter, 1):
+        if dp_lim is not None and doc_index > dp_lim:
+            break
         print(f"Document {doc_index}:")
         pretty_doc = _pretty_value(doc, 0)
         print(pretty_doc)
