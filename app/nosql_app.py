@@ -14,7 +14,6 @@ from NoSQL_package import NoSql, pretty_print_nosql
 
 def convert_array_to_ndjson(src_path: str) -> str:
 
-    # Open input JSON file in streaming mode
     with open(src_path, "r", encoding="utf-8") as infile:
         # Detect first non-whitespace character
         while True:
@@ -29,9 +28,7 @@ def convert_array_to_ndjson(src_path: str) -> str:
         if ch != "[":
             return src_path
 
-        # Prepare NDJSON temporary file
-        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".ndjson",
-                                               mode="w", encoding="utf-8")
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".ndjson", mode="w", encoding="utf-8")
         out = tmp_file
 
         depth = 0
@@ -67,7 +64,6 @@ def convert_array_to_ndjson(src_path: str) -> str:
                     depth -= 1
 
                     if depth == 0:
-                        # One object completed
                         obj = "".join(buffer).strip()
                         if obj:
                             out.write(obj + "\n")

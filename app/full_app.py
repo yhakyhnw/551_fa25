@@ -16,7 +16,7 @@ def homepage():
     st.markdown("---")
 
     st.subheader("💰 NoSQL Demo 📈")
-    st.markdown("The NoSQL demo uses salary data!")
+    st.markdown("The NoSQL demo uses salary data!  \nA dummy dataset is also available for speedy testing!")
 
     st.button("Start NoSQL Demo", on_click = lambda: set_page("nosql"))
 

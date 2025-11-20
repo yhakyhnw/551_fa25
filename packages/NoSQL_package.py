@@ -371,14 +371,25 @@ class NoSql:
             foreign_val = _get_value(rdoc, foreign_field)
             if foreign_val is None:
                 continue
-            right_index.setdefault(foreign_val, []).append(rdoc)
-        
+            right_index[foreign_val] = rdoc
+
         joined = []
         for ldoc in left_docs:
             local_val = _get_value(ldoc, local_field)
-            matches = right_index.get(local_val, []) if local_val is not None else []
             new_doc = dict(ldoc)
-            new_doc[as_field] = matches[:]
+
+            match = None
+            if local_val is not None:
+                match = right_index.get(local_val)
+
+            if match is None:
+                # No match: keep an explicit None for the joined field
+                new_doc[as_field] = None
+            else:
+                new_doc[as_field] = dict(match)
+                for k, v in match.items():
+                    new_doc[f"{as_field}.{k}"] = v
+
             joined.append(new_doc)
 
         return NoSql(joined)
@@ -416,49 +427,6 @@ class NoSql:
         return docs
 
 
-    def _get_field_value(self, doc, path: str):
-        """
-        Resolve dotted paths like 'joined.language' or 'joined.0.language' in dict/list docs.
-
-        Pseudo-unwind behavior:
-        - If an intermediate value is a list and the next part is NOT a digit, and the list
-          contains dicts, we take the first element's value for that key.
-        - This is sufficient for 1-to-1 joins where 'joined' usually has length 0 or 1.
-        """
-        if not isinstance(path, str):
-            raise TypeError("field path must be a string")
-
-        parts = path.split(".")
-        cur = doc
-
-        for part in parts:
-            if isinstance(cur, dict):
-                cur = cur.get(part, None)
-            elif isinstance(cur, list):
-                # Explicit numeric index, e.g. 'joined.0.language'
-                if part.isdigit():
-                    idx = int(part)
-                    if 0 <= idx < len(cur):
-                        cur = cur[idx]
-                    else:
-                        return None
-                else:
-                    # Pseudo-unwind: list of dicts, take first element's field if available
-                    if not cur:
-                        return None
-                    first = cur[0]
-                    if isinstance(first, dict):
-                        cur = first.get(part, None)
-                    else:
-                        return None
-            else:
-                return None
-
-            if cur is None:
-                return None
-
-        return cur
-
     def group_by(self, keys):
         docs = self._ensure_flat_docs(self.data)
 
@@ -472,7 +440,7 @@ class NoSql:
 
         groups = {}
         for doc in docs:
-            key_tuple = tuple(self._get_field_value(doc, k) for k in group_keys)
+            key_tuple = tuple(doc.get(k) for k in group_keys)
             groups.setdefault(key_tuple, []).append(doc)
 
         out = []
@@ -500,7 +468,7 @@ class NoSql:
 
         groups = {}
         for doc in docs:
-            key_tuple = tuple(self._get_field_value(doc, k) for k in group_keys)
+            key_tuple = tuple(doc.get(k) for k in group_keys)
             groups.setdefault(key_tuple, []).append(doc)
 
         def _apply_agg(values, fn):
