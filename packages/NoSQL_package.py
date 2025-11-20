@@ -820,7 +820,6 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
             break
         pretty_doc = _pretty_value(doc, 0)
         print(pretty_doc)
-        print()
 
 
 # dummy data for demo
