@@ -832,7 +832,21 @@ def step3():
     if isinstance(current, list) and current and isinstance(current[0], dict):
         pretty_target = NoSql(current)
 
-    st.code(capture_pretty(pretty_target, dp_lim=None), language="text")
+    # Decide safe pretty-print limit
+    limit = None
+    if isinstance(pretty_target, NoSql) and hasattr(pretty_target, "data"):
+        n_docs = len(pretty_target.data)
+        if n_docs > 200:
+            limit = 200  # cap large results
+    else:
+        limit = 200  # non‑NoSql fallback safeguard
+
+    text = capture_pretty(pretty_target, dp_lim=limit)
+
+    if limit is not None:
+        st.caption(f"Showing first {limit} documents (full result truncated).")
+
+    st.code(text, language="text")
 
 
 def main():
