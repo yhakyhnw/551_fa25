@@ -592,7 +592,7 @@ def step2():
 
     st.markdown("---")
     st.markdown("#### Dataset sample (preview)")
-    st.markdown("###### Document # are not part of the file, just there for display")
+    st.markdown("###### 'Document #' is not part of the file, just there for display")
     if ns1 is not None:
         st.markdown("**Dataset 1**")
         st.code(capture_pretty(ns1, dp_lim=3), language="text")
@@ -608,12 +608,7 @@ def step3():
     pipeline = st.session_state.get("nosql_pipeline", [])
 
     def _normalize_result(obj):
-        """Normalize pipeline step results into a NoSql object when appropriate.
 
-        - If it's already a NoSql, return it.
-        - If it's a list of dicts, wrap in NoSql.
-        - Otherwise, return as-is.
-        """
         if isinstance(obj, NoSql):
             return obj
         if isinstance(obj, list) and obj and isinstance(obj[0], dict):
@@ -621,14 +616,7 @@ def step3():
         return obj
 
     def _materialize_dataset(key: str):
-        """
-        Ensure that the object stored under `key` is a single NoSql instance.
 
-        - If it's already a NoSql, return it.
-        - If it's a list/tuple of NoSql chunks, merge their `.data` into one NoSql.
-        - If it's an iterable (generator, tee, etc.) yielding NoSql chunks or dict docs,
-          iterate once, merge, and store back as a NoSql.
-        """
         obj = st.session_state.get(key)
         if obj is None:
             return None
