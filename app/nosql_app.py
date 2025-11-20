@@ -447,6 +447,7 @@ def step1():
 def step2():
     """Step 2: Data Analysis (NoSQL)."""
     st.markdown("### Step 2: Data Analysis (NoSQL)")
+    st.markdown("###### Scroll all the way down to see dataset preview (first 3 documents)")
 
     demo_mode = st.session_state.get("nosql_demo_mode")
 

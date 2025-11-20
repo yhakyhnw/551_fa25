@@ -818,7 +818,6 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
     for doc_index, doc in enumerate(docs_to_iter, 1):
         if dp_lim is not None and doc_index > dp_lim:
             break
-        print(f"Document {doc_index}:")
         pretty_doc = _pretty_value(doc, 0)
         print(pretty_doc)
         print()
