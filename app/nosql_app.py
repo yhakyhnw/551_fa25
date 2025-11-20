@@ -199,10 +199,12 @@ def nosql_step_desc(step):
             desc_parts.append(f"expr = {expr_str}")
 
     elif op_label == "join":
-        # New: single join key, but keep backward compatibility with left_on/right_on
-        key_str = step.get("on", "") or step.get("left_on", "")
-        if key_str:
-            desc_parts.append(f"key = {key_str}")
+        left_on = step.get("left_on", "")
+        right_on = step.get("right_on", "")
+        if left_on:
+            desc_parts.append(f"local_field = {left_on}")
+        if right_on:
+            desc_parts.append(f"foreign_field = {right_on}")
 
 
     elif op_label == "project":
@@ -243,10 +245,12 @@ def nosql_pipeline_diagram():
                 params.append(f"expr={step['expr']}")
 
         elif op == "join":
-            # New: single join key, but keep backward compatibility
-            key = step.get("on") or step.get("left_on")
-            if key:
-                params.append(f"key={key}")
+            left_on = step.get("left_on")
+            right_on = step.get("right_on")
+            if left_on:
+                params.append(f"local_field={left_on}")
+            if right_on:
+                params.append(f"foreign_field={right_on}")
 
 
         elif op == "project":
@@ -306,9 +310,13 @@ def filter_params():
 def join_params():
     st.markdown("##### Configure join")
 
-    join_key = st.text_input(
-        "Join field (must exist in both Dataset 1 and Dataset 2)",
-        key="nosql_join_key_input",
+    left_on = st.text_input(
+        "Local field (Dataset 1)",
+        key="nosql_join_left_on_input",
+    )
+    right_on = st.text_input(
+        "Foreign field (Dataset 2)",
+        key="nosql_join_right_on_input",
     )
 
     if st.button("Confirm join", key="nosql_confirm_join"):
@@ -318,7 +326,8 @@ def join_params():
         st.session_state.nosql_pipeline.append(
             {
                 "op": "join",
-                "on": join_key,
+                "left_on": left_on,
+                "right_on": right_on,
             }
         )
         st.success("Added join to NoSQL pipeline.")
@@ -809,17 +818,21 @@ def step3():
                     st.error("Join requested but Dataset 2 is not available or not a valid NoSql object.")
                     return
 
-                # New: single join key, but accept legacy left_on if present
-                join_key = (step.get("on") or step.get("left_on", "")).strip()
+                left_on = step.get("left_on", "").strip()
+                right_on = step.get("right_on", "").strip()
 
-                if not join_key:
-                    st.error("Join step missing join key.")
+                if not left_on:
+                    st.error("Join step missing local_field (Dataset 1).")
                     return
+
+                if not right_on:
+                    # If foreign field is omitted, default to same as local
+                    right_on = left_on
 
                 result = current.join(
                     from_field=ns2,
-                    local_field=join_key,
-                    foreign_field=join_key,
+                    local_field=left_on,
+                    foreign_field=right_on,
                     as_field="joined",
                 )
                 current = _normalize_result(result)
@@ -876,7 +889,9 @@ def main():
         nosql_keys = ["nosql_demo_mode", "nosql_df1", "nosql_df2", "nosql_df1_source", "nosql_df2_source",
                       "nosql_show_upload_1", "nosql_show_upload_2", "nosql_current_stage",
                       "nosql_use_chunk", "nosql_chunk_size", "nosql_pipeline", "nosql_groupby_cols_input", "nosql_groupby_agg_input",
-                      "nosql_filter_expr_input", "nosql_join_key_input", "nosql_project_cols_input"]
+                      "nosql_filter_expr_input",
+                      "nosql_join_left_on_input", "nosql_join_right_on_input",
+                      "nosql_project_cols_input"]
 
         for state_key in nosql_keys:
             if state_key in st.session_state:
