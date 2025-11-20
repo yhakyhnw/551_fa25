@@ -216,56 +216,6 @@ def nosql_step_desc(step):
     return op_label, desc_text
 
 
-def nosql_pipeline_diagram():
-    pipeline = st.session_state.get("nosql_pipeline", [])
-    demo_mode = st.session_state.get("nosql_demo_mode")
-
-    if demo_mode == "2 dataset demo (join)":
-        base = "Dataset 1 (+ Dataset 2)"
-    else:
-        base = "Dataset 1"
-
-    if not pipeline:
-        st.write(base)
-        return
-
-    labels = []
-    for step in pipeline:
-        op = step.get("op")
-        params = []
-
-        if op == "groupby_agg":
-            if step.get("group_cols"):
-                params.append(f"group_by={step['group_cols']}")
-            if step.get("agg_spec"):
-                params.append(f"agg={step['agg_spec']}")
-
-        elif op == "filter":
-            if step.get("expr"):
-                params.append(f"expr={step['expr']}")
-
-        elif op == "join":
-            left_on = step.get("left_on")
-            right_on = step.get("right_on")
-            if left_on:
-                params.append(f"local_field={left_on}")
-            if right_on:
-                params.append(f"foreign_field={right_on}")
-
-
-        elif op == "project":
-            if step.get("columns"):
-                params.append(f"fields={step['columns']}")
-
-        if params:
-            label = f"{op}({', '.join(params)})"
-        else:
-            label = op
-
-        labels.append(label)
-
-    diagram = base + "  ➜  " + "  ➜  ".join(labels)
-    st.write(diagram)
 
 
 def group_by_params():
@@ -629,7 +579,6 @@ def step2():
 
     st.markdown("---")
     st.markdown("#### Current pipeline")
-    nosql_pipeline_diagram()
 
     if pipeline:
         st.markdown("##### Edit pipeline steps")
@@ -751,7 +700,6 @@ def step3():
         return
 
     st.markdown("#### Current pipeline")
-    nosql_pipeline_diagram()
     st.markdown("---")
 
     current = ns1
