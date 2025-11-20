@@ -859,6 +859,13 @@ def main():
             "nosql_show_upload_1", "nosql_show_upload_2",
             "nosql_current_stage",
             "nosql_use_chunk", "nosql_chunk_size",
+            "nosql_pipeline",
+            "nosql_groupby_cols_input",
+            "nosql_groupby_agg_input",
+            "nosql_filter_expr_input",
+            "nosql_join_left_on_input",
+            "nosql_join_right_on_input",
+            "nosql_project_cols_input",
         ]
 
         for state_key in nosql_keys:
