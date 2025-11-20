@@ -581,7 +581,6 @@ def step2():
     st.markdown("#### Current pipeline")
 
     if pipeline:
-        st.markdown("##### Edit pipeline steps")
         for step_index, step in enumerate(pipeline):
             op_label, desc_text = nosql_step_desc(step)
             if not op_label:
