@@ -22,16 +22,25 @@ streamlit, io, os, sys, re, typing
   - `SQL_package.py` — SQL package
 
 
-### 4. Executing program
+### 4. Executing the Program
 
-There are two ways to run the full_app.py program:
-1. Internet: https://fullapp-551-hks.streamlit.app/
-2. Local:
-    i. Download entire repo onto locale
-    ii. Ensure all dependencies are installed
-    iii. On terminal, navigate to app folder
-    iv. Execute the following on terminal:
-        streamlit run full_app.py
+You can run the application in two different ways:
+
+#### **Option 1 — Run Online**
+Use Streamlit link:  
+**https://fullapp-551-hks.streamlit.app/**
+
+#### **Option 2 — Run Locally**
+1. Download the entire repository to your local machine.  
+2. Ensure all required dependencies are installed.  
+3. Open a terminal and navigate to the **app/** directory:  
+   ```
+   cd app
+   ```  
+4. Run Streamlit with:  
+   ```
+   streamlit run full_app.py
+   ```
 
 ## Authors
 
