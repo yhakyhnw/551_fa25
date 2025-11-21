@@ -24,7 +24,7 @@ streamlit, io, os, sys, re, typing
     - `SQL_package.py` — SQL package
 
 - The **demo_data/** directory contains the two datasets used in the demo: <br>
-***note: the dummy data embedded in each of the package was designed to work with these two files!***
+*note: the dummy data embedded in each of the package was designed to work with these two files!*
     - `salaries.json` - NoSQL demo file of salaries for differing data science jobs
     - `vehicle_price_prediction.csv` - SQL demo file of second hand car prices
 
