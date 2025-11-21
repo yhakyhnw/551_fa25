@@ -24,6 +24,7 @@ streamlit, io, os, sys, re, typing
     - `SQL_package.py` — SQL package
 
 - The **demo_data/** directory contains the two datasets used in the demo:
+    - note: the dummy datasets embedded in each of the package was designed to work with these two files!
     - `salaries.json` - NoSQL demo file of salaries for differing data science jobs
     - `vehicle_price_prediction.csv` - SQL demo file of second hand car prices
 
@@ -68,10 +69,6 @@ Note: only accepts .csv filetypes
 - **Join** — combine rows across tables 
 - **Group_by** — group rows by key  
 - **Aggregate** — numerical aggregations (sum, mean, min, max, count)
-
-## 6. Recommended Usage
-### **NoSQL Demo**
-Use the 
 
 ## Authors
 
