@@ -23,7 +23,6 @@ streamlit, io, os, sys, re, typing
   - `NoSQL_package.py` — NoSQL package
   - `SQL_package.py` — SQL package
 
-
 ## 4. Executing the Program
 
 You can run the application in two different ways:
@@ -43,9 +42,6 @@ Use Streamlit link:
    ```
    streamlit run full_app.py
    ```
-
-## 5. 
-
 ## Authors
 
 Yonghoon Kim <br>
