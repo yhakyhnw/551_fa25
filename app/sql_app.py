@@ -229,12 +229,12 @@ def step1():
             st.info(f"Dataset 2: {src2}")
 
 def groupby_agg_params():
-    st.markdown("##### Configure group by + aggregate")
+    st.markdown("##### Configure Group By & Aggregate")
     
-    group_cols = st.text_input("Group by columns (comma-separated)", key = "groupby_cols_input")
-    agg_spec = st.text_input("Aggregation spec (e.g. col1:sum,col2:mean)", key = "groupby_agg_input")
+    group_cols = st.text_input("Group by columns (comma separated)", key = "groupby_cols_input")
+    agg_spec = st.text_input("Aggregation spec (e.g. Founded:mean)", key = "groupby_agg_input")
 
-    if st.button("Confirm groupby+agg"):
+    if st.button("Confirm Group By & Agg"):
 
         if "pipeline" not in st.session_state:
             st.session_state.pipeline = []
@@ -247,11 +247,11 @@ def groupby_agg_params():
         st.rerun()
 
 def filter_params():
-    st.markdown("##### Configure filter")
+    st.markdown("##### Configure Filter")
     
-    expr = st.text_input("Filter expression (e.g. col1 > 10 & col2 == 'A')", key = "filter_expr_input")
+    expr = st.text_input("Filter expression (e.g. Founded > 1950)", key = "filter_expr_input")
 
-    if st.button("Confirm filter"):
+    if st.button("Confirm Filter"):
     
         if "pipeline" not in st.session_state:
             st.session_state.pipeline = []
@@ -262,13 +262,13 @@ def filter_params():
         st.rerun()
 
 def join_params():
-    st.markdown("##### Configure join")
+    st.markdown("##### Configure Hoin")
     
     left_on = st.text_input("Left key column (Dataset 1)", key = "join_left_on_input")
     right_on = st.text_input("Right key column (Dataset 2)", key = "join_right_on_input")
     join_type = st.text_input("Join type (inner, left, right, outer)", value = "inner", key = "join_type_input")
 
-    if st.button("Confirm join"):
+    if st.button("Confirm Join"):
         
         if "pipeline" not in st.session_state:
             st.session_state.pipeline = []
@@ -282,11 +282,11 @@ def join_params():
         st.rerun()
 
 def project_params():
-    st.markdown("##### Configure projection")
+    st.markdown("##### Configure Projection")
     
-    cols = st.text_input("Projection columns (comma-separated)", key = "project_cols_input")
+    cols = st.text_input("Projection columns (comma separated)", key = "project_cols_input")
     
-    if st.button("Confirm projection"):
+    if st.button("Confirm Projection"):
         if "pipeline" not in st.session_state:
             st.session_state.pipeline = []
         st.session_state.pipeline.append({"op": "project", 
@@ -607,8 +607,7 @@ def main():
         st.rerun()
 
     # title
-    st.markdown("# Analysis of second-hand car prices")
-    st.markdown("### DSCI 551 Project (SQL)")
+    st.markdown("## Analysis of second-hand car prices")
     st.markdown("---")
 
     if "current_stage" not in st.session_state:

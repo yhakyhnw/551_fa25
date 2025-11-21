@@ -2,8 +2,10 @@ from __future__ import annotations
 from typing import Optional, Dict, Tuple, List, Iterable, Any, Union
 import os
 import re
-import sys
 
+"""
+Helper functions 
+"""
 def _get_header(file, encoding, delimiter) -> list:
     if not os.path.exists(file):
         raise FileNotFoundError(f"Error: '{file}' does not exist")
@@ -58,6 +60,9 @@ def _strip_full_parentheses(args):
             break
     return args
 
+"""
+Group By class
+"""
 class GroupBy:
     VALID_OPS = {"sum", "mean", "min", "max", "count"}
 
@@ -180,7 +185,7 @@ class GroupBy:
             else:
                 return None
 
-        for key_tuple, idxs in sorted(self.groups.items(), key=lambda kv: kv[0]):
+        for key_tuple, idxs in sorted(self.groups.items(), key = lambda kv: kv[0]):
             for bname, bval in zip(self.by, key_tuple):
                 out_cols[bname].append(bval)
 
@@ -192,9 +197,11 @@ class GroupBy:
                 out_cols['count'].append(len(idxs))
 
         output = {h: tuple(out_cols[h]) for h in out_header}
-        return PSO.parser(data=output, header=out_header)
+        return PSO.parser(data = output, header = out_header)
 
-
+"""
+SQL class (Called PSO)
+"""
 class PSO:
     def __init__(self, data: dict, header: list,
                  encoding: str = "UTF-8", delimiter: str = ","):
@@ -203,6 +210,9 @@ class PSO:
         self.encoding = encoding
         self.delimiter = delimiter
 
+    """
+    Parser
+    """
     @classmethod
     def parser(cls, file: str = None, data: dict = None,
                    header: Optional[list] = None, encoding: str = "UTF-8", delimiter: str = ",") -> "PSO":
@@ -244,7 +254,7 @@ class PSO:
         if file is None or expected == 0:
             return cls({h: tuple() for h in header}, header, encoding = encoding, delimiter = delimiter)
 
-        with open(file, "r", encoding=encoding) as f:
+        with open(file, "r", encoding = encoding) as f:
             _ = f.readline()  # skip header
             for line in f:
                 line = line.strip()
@@ -357,7 +367,153 @@ class PSO:
             table = table + "\n" + rs
             
         return table
+    
+    """
+    Function 1: Project
+    """
+    def projection(self, *cols):
+        try:
+            if not cols:
+                raise ValueError("No columns specified")
+
+            if len(cols) == 1 and isinstance(cols[0], str):
+                input_cols = [c.strip() for c in cols[0].split(",") if c.strip()]
+            else:
+                input_cols = [str(c).strip() for c in cols if str(c).strip()]
+
+            if not input_cols:
+                raise ValueError("Empty column list")
+
+            missing_cols = [c for c in input_cols if c not in self.data]
+            if missing_cols:
+                raise KeyError(f"Columns not found: {missing_cols}")
+
+            output = {c: self.data[c] for c in input_cols}
+            return PSO.parser(data = output)
+
+        except (KeyError, ValueError) as err:
+            raise ValueError(f"Error in .projection: {err}")
         
+    """
+    Function 2: Join
+    """
+    def join(self, other: "PSO", *, left_on: str, right_on: str | None = None, join_type: str = "inner") -> "PSO":
+        try:
+            if not isinstance(other, PSO):
+                raise TypeError(f"'{other}' must be a PSO instance")
+
+            if right_on is None:
+                right_on = left_on
+
+            if left_on not in self.data:
+                raise KeyError(f"left key '{left_on}' not found")
+            if right_on not in other.data:
+                raise KeyError(f"right key '{right_on}' not found")
+
+            normalized_join_type = str(join_type).lower()
+            valid_types = {"inner", "left", "right", "outer"}
+            if normalized_join_type not in valid_types:
+                raise ValueError(f"Type must be one of {sorted(valid_types)}")
+
+            right_key_index: Dict[Any, List[int]] = {}
+            for right_row_index, right_key_value in enumerate(other.data[right_on]):
+                right_key_index.setdefault(right_key_value, []).append(right_row_index)
+
+            left_columns = list(self.data.keys())
+            right_columns = list(other.data.keys())
+
+            # Exclude right join key from payload to prevent duplicates
+            right_payload_columns = [c for c in right_columns if c != right_on]
+
+            # Handle collisions
+            overlapping_columns = set(left_columns).intersection(right_payload_columns)
+            renamed_right_columns = {
+                c: (f"right_{c}" if c in overlapping_columns else c)
+                for c in right_payload_columns
+            }
+
+            output_columns = left_columns + [renamed_right_columns[c] for c in right_payload_columns]
+            output_data_lists = {c: [] for c in output_columns}
+
+            def append_joined_row(left_row_index: int | None, right_row_index: int | None):
+                # left side
+                for column in left_columns:
+                    value = self.data[column][left_row_index] if left_row_index is not None else None
+                    output_data_lists[column].append(value)
+                # right side
+                for right_col in right_payload_columns:
+                    out_col = renamed_right_columns[right_col]
+                    value = other.data[right_col][right_row_index] if right_row_index is not None else None
+                    output_data_lists[out_col].append(value)
+
+            matched_right_rows: set[int] = set()
+
+            for left_row_index, left_key_value in enumerate(self.data[left_on]):
+                matching_right_rows = right_key_index.get(left_key_value, [])
+
+                if matching_right_rows:
+                    for right_row_index in matching_right_rows:
+                        append_joined_row(left_row_index, right_row_index)
+                        matched_right_rows.add(right_row_index)
+                else:
+                    if normalized_join_type in {"left", "outer"}:
+                        append_joined_row(left_row_index, None)
+
+            # Unmatched right rows (right/outer)
+            if normalized_join_type in {"right", "outer"}:
+                left_key_values = set(self.data[left_on])
+
+                for right_row_index, right_key_value in enumerate(other.data[right_on]):
+                    if right_row_index in matched_right_rows:
+                        continue
+
+                    if normalized_join_type == "right" or right_key_value not in left_key_values:
+                        append_joined_row(None, right_row_index)
+
+            output = {col: tuple(values) for col, values in output_data_lists.items()}
+            return PSO.parser(data = output)
+
+        except (TypeError, KeyError, ValueError) as err:
+            raise ValueError(f"Error in .join: {err}")
+    
+    """
+    Function 3: Group By & Aggregate
+    """
+    def group_by(self, by: str or list = None) -> GroupBy:
+        if by is None:
+            raise ValueError("Error in .group_by(by): 'by' is required\n")
+        if not isinstance(by, (str, list)):
+            raise ValueError("Error in .group_by(by): 'by' must be a string or a list\n")
+        
+        by = [by] if isinstance(by, str) else by
+
+        for b in by:
+            if b not in self.header:
+                raise ValueError(f"Error in .group_by(by): '{b}' column does not exist in dataset\n")
+
+        num_rows = len(next(iter(self.data.values()))) if self.data else 0
+
+        # Get the number of rows
+        if num_rows == 0:
+            return GroupBy({}, self.data, [])
+        
+        # Create groups based on row combinations
+        groups = {}
+        for i in range(num_rows):
+            # Create a key tuple with values from each grouping column for row i
+            key = tuple(self.data[col][i] for col in by)
+            
+            if key not in groups:
+                groups[key] = []
+            
+            # Add the row index to this group
+            groups.setdefault(key,[]).append(i)
+        
+        return GroupBy(groups, self.data, by)
+    
+    """
+    Function 4: Filter
+    """
     def single_filter(self, *args, chain = False):
         
         ok, msg = _arg_checker(*args)
@@ -424,7 +580,7 @@ class PSO:
                         if operation[op](col_val, val):
                             tempset.add(i)
                     except TypeError:
-                        raise TypeError(f"Error in .single_filter(args): incompatible comparator in clause '{col} {op} {val}'")
+                        raise TypeError(f"Error in .single_filter(args): Incompatible comparator in clause '{col} {op} {val}'")
                 indexes.append(tempset)
     
             # intersection for AND
@@ -665,137 +821,3 @@ class PSO:
 
         output = {col: tuple(self.data[col][i] for i in final_index) for col in self.data}
         return PSO.parser(data = output) 
-
-    def group_by(self, by: str or list = None) -> GroupBy:
-        if by is None:
-            raise ValueError("Error in .group_by(by): 'by' is required\n")
-        if not isinstance(by, (str, list)):
-            raise ValueError("Error in .group_by(by): 'by' must be a string or a list\n")
-        
-        by = [by] if isinstance(by, str) else by
-
-        for b in by:
-            if b not in self.header:
-                raise ValueError(f"Error in .group_by(by): '{b}' column does not exist in dataset\n")
-
-        num_rows = len(next(iter(self.data.values()))) if self.data else 0
-
-        # Get the number of rows
-        if num_rows == 0:
-            return GroupBy({}, self.data, [])
-        
-        # Create groups based on row combinations
-        groups = {}
-        for i in range(num_rows):
-            # Create a key tuple with values from each grouping column for row i
-            key = tuple(self.data[col][i] for col in by)
-            
-            if key not in groups:
-                groups[key] = []
-            
-            # Add the row index to this group
-            groups.setdefault(key,[]).append(i)
-        
-        return GroupBy(groups, self.data, by)
-
-    def projection(self, *cols):
-        try:
-            if not cols:
-                raise ValueError("No columns specified")
-
-            if len(cols) == 1 and isinstance(cols[0], str):
-                input_cols = [c.strip() for c in cols[0].split(",") if c.strip()]
-            else:
-                input_cols = [str(c).strip() for c in cols if str(c).strip()]
-
-            if not input_cols:
-                raise ValueError("Empty column list")
-
-            missing_cols = [c for c in input_cols if c not in self.data]
-            if missing_cols:
-                raise KeyError(f"Columns not found: {missing_cols}")
-
-            output = {c: self.data[c] for c in input_cols}
-            return PSO.parser(data=output)
-
-        except (KeyError, ValueError) as err:
-            raise ValueError(f"Error in .projection: {err}")
-
-    def join(self, other: "PSO", *, left_on: str, right_on: str | None = None, join_type: str = "inner") -> "PSO":
-        try:
-            if not isinstance(other, PSO):
-                raise TypeError(f"'{other}' must be a PSO instance")
-
-            if right_on is None:
-                right_on = left_on
-
-            if left_on not in self.data:
-                raise KeyError(f"left key '{left_on}' not found")
-            if right_on not in other.data:
-                raise KeyError(f"right key '{right_on}' not found")
-
-            normalized_join_type = str(join_type).lower()
-            valid_types = {"inner", "left", "right", "outer"}
-            if normalized_join_type not in valid_types:
-                raise ValueError(f"Type must be one of {sorted(valid_types)}")
-
-            right_key_index: Dict[Any, List[int]] = {}
-            for right_row_index, right_key_value in enumerate(other.data[right_on]):
-                right_key_index.setdefault(right_key_value, []).append(right_row_index)
-
-            left_columns = list(self.data.keys())
-            right_columns = list(other.data.keys())
-
-            # Exclude right join key from payload to prevent duplicates
-            right_payload_columns = [c for c in right_columns if c != right_on]
-
-            # Handle collisions
-            overlapping_columns = set(left_columns).intersection(right_payload_columns)
-            renamed_right_columns = {
-                c: (f"right_{c}" if c in overlapping_columns else c)
-                for c in right_payload_columns
-            }
-
-            output_columns = left_columns + [renamed_right_columns[c] for c in right_payload_columns]
-            output_data_lists = {c: [] for c in output_columns}
-
-            def append_joined_row(left_row_index: int | None, right_row_index: int | None):
-                # left side
-                for column in left_columns:
-                    value = self.data[column][left_row_index] if left_row_index is not None else None
-                    output_data_lists[column].append(value)
-                # right side
-                for right_col in right_payload_columns:
-                    out_col = renamed_right_columns[right_col]
-                    value = other.data[right_col][right_row_index] if right_row_index is not None else None
-                    output_data_lists[out_col].append(value)
-
-            matched_right_rows: set[int] = set()
-
-            for left_row_index, left_key_value in enumerate(self.data[left_on]):
-                matching_right_rows = right_key_index.get(left_key_value, [])
-
-                if matching_right_rows:
-                    for right_row_index in matching_right_rows:
-                        append_joined_row(left_row_index, right_row_index)
-                        matched_right_rows.add(right_row_index)
-                else:
-                    if normalized_join_type in {"left", "outer"}:
-                        append_joined_row(left_row_index, None)
-
-            # Unmatched right rows (right/outer)
-            if normalized_join_type in {"right", "outer"}:
-                left_key_values = set(self.data[left_on])
-
-                for right_row_index, right_key_value in enumerate(other.data[right_on]):
-                    if right_row_index in matched_right_rows:
-                        continue
-
-                    if normalized_join_type == "right" or right_key_value not in left_key_values:
-                        append_joined_row(None, right_row_index)
-
-            output = {col: tuple(values) for col, values in output_data_lists.items()}
-            return PSO.parser(data=output)
-
-        except (TypeError, KeyError, ValueError) as err:
-            raise ValueError(f"Error in .join: {err}")
