@@ -1,6 +1,6 @@
 import streamlit as st
-from pages import sql_app
-from pages import nosql_app
+import sql_app
+import nosql_app
 
 def homepage():
     st.markdown("## DSCI 551 Project Demo")
