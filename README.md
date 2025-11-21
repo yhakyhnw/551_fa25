@@ -20,10 +20,14 @@ streamlit, io, os, sys, re, typing
     - `sql_app.py` — SQL interface  
 
 - The **packages/** directory contains the two core processing modules:
-  - `NoSQL_package.py` — NoSQL package
-  - `SQL_package.py` — SQL package
+    - `NoSQL_package.py` — NoSQL package
+    - `SQL_package.py` — SQL package
 
-## 4. Executing the Program
+- The **demo_data/** directory contains the two datasets used in the demo:
+    - `salaries.json` - NoSQL demo file of salaries for differing data science jobs
+    - `vehicle_price_prediction.csv` - SQL demo file of second hand car prices
+
+## 4. Executing the Application
 
 You can run the application in two different ways:
 
@@ -64,6 +68,10 @@ Note: only accepts .csv filetypes
 - **Join** — combine rows across tables 
 - **Group_by** — group rows by key  
 - **Aggregate** — numerical aggregations (sum, mean, min, max, count)
+
+## 6. Recommended Usage
+### **NoSQL Demo**
+Use the 
 
 ## Authors
 
