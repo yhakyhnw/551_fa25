@@ -10,8 +10,8 @@ def _get_header(file, encoding, delimiter) -> list:
     if not os.path.exists(file):
         raise FileNotFoundError(f"Error: '{file}' does not exist")
         
-    with open(file, "r", encoding = encoding) as f:
-        first_line = f.readline().strip()
+    with open(file, "r", encoding = encoding) as f_in:
+        first_line = f_in.readline().strip()
     
     return first_line.split(delimiter)
 
@@ -106,6 +106,7 @@ class GroupBy:
 
         all_cols = list(self.data.keys())
         by_set = set(self.by)
+        
         non_by_cols = [col for col in all_cols if col not in by_set]
 
         numeric_cols = [col for col in non_by_cols if _col_is_numeric(self.data[col])]
@@ -156,7 +157,7 @@ class GroupBy:
         if requested_count and "count" not in out_header:
             out_header.append("count")
 
-        out_cols = {h: [] for h in out_header}
+        out_cols = {header: [] for header in out_header}
 
         def do_aggregate(op: str, series: List[Any]) -> Any:
             vals = [v for v in series if v is not None]
@@ -196,7 +197,7 @@ class GroupBy:
             if requested_count:
                 out_cols['count'].append(len(idxs))
 
-        output = {h: tuple(out_cols[h]) for h in out_header}
+        output = {header: tuple(out_cols[header]) for header in out_header}
         return PSO.parser(data = output, header = out_header)
 
 """
@@ -252,11 +253,11 @@ class PSO:
         num_pat = re.compile(r'^-?\d+(?:\.\d+)?$')
 
         if file is None or expected == 0:
-            return cls({h: tuple() for h in header}, header, encoding = encoding, delimiter = delimiter)
+            return cls({header_ind: tuple() for header_ind in header}, header, encoding = encoding, delimiter = delimiter)
 
-        with open(file, "r", encoding = encoding) as f:
-            _ = f.readline()  # skip header
-            for line in f:
+        with open(file, "r", encoding = encoding) as f_in:
+            _ = f_in.readline()
+            for line in f_in:
                 line = line.strip()
                 if not line:
                     continue
@@ -284,7 +285,7 @@ class PSO:
                             casted = s
                     cols[h].append(casted)
 
-        data_dict = {h: tuple(vals) for h, vals in cols.items()}
+        data_dict = {header: tuple(vals) for header, vals in cols.items()}
 
         return cls(data_dict, header, encoding = encoding, delimiter = delimiter)
             
@@ -297,10 +298,10 @@ class PSO:
         display_limit = 20
     
         rows = []
-        for i in range(num_rows):
+        for row_index in range(num_rows):
             row = []
-            for c in cols:
-                val = self.data[c][i]
+            for col_name in cols:
+                val = self.data[col_name][row_index]
                 if val is not None:
                     row.append(str(val))
                 else:
@@ -309,8 +310,8 @@ class PSO:
     
         if num_rows > display_limit:
             limited_rows = []
-            for r in rows[:display_limit]:
-                limited_rows.append(r)
+            for row in rows[:display_limit]:
+                limited_rows.append(row)
 
             dots_row = []
             for _ in cols:
@@ -325,11 +326,11 @@ class PSO:
 
             # compute max_val_len with expanded loop
             max_val_len = 0
-            for v in self.data[col]:
-                if v is None:
+            for value in self.data[col]:
+                if value is None:
                     val_str = ""
                 else:
-                    val_str = str(v)
+                    val_str = str(value)
 
                 if len(val_str) > max_val_len:
                     max_val_len = len(val_str)
@@ -354,10 +355,10 @@ class PSO:
         sep_str = "-+-".join(sep_parts)
         
         row_strs = []
-        for r in rows:
+        for row in rows:
             padded_values = []
-            for i in range(len(cols)):
-                padded_values.append(r[i].ljust(col_widths[cols[i]]))
+            for col_index in range(len(cols)):
+                padded_values.append(row[col_index].ljust(col_widths[cols[col_index]]))
             row_str = " | ".join(padded_values)
             row_strs.append(row_str)
             
@@ -377,18 +378,18 @@ class PSO:
                 raise ValueError("No columns specified")
 
             if len(cols) == 1 and isinstance(cols[0], str):
-                input_cols = [c.strip() for c in cols[0].split(",") if c.strip()]
+                input_cols = [col_name.strip() for col_name in cols[0].split(",") if col_name.strip()]
             else:
-                input_cols = [str(c).strip() for c in cols if str(c).strip()]
+                input_cols = [str(col_name).strip() for col_name in cols if str(col_name).strip()]
 
             if not input_cols:
                 raise ValueError("Empty column list")
 
-            missing_cols = [c for c in input_cols if c not in self.data]
+            missing_cols = [col_name for col_name in input_cols if col_name not in self.data]
             if missing_cols:
                 raise KeyError(f"Columns not found: {missing_cols}")
 
-            output = {c: self.data[c] for c in input_cols}
+            output = {col_name: self.data[col_name] for col_name in input_cols}
             return PSO.parser(data = output)
 
         except (KeyError, ValueError) as err:
@@ -422,15 +423,10 @@ class PSO:
             left_columns = list(self.data.keys())
             right_columns = list(other.data.keys())
 
-            # Exclude right join key from payload to prevent duplicates
             right_payload_columns = [c for c in right_columns if c != right_on]
 
-            # Handle collisions
             overlapping_columns = set(left_columns).intersection(right_payload_columns)
-            renamed_right_columns = {
-                c: (f"right_{c}" if c in overlapping_columns else c)
-                for c in right_payload_columns
-            }
+            renamed_right_columns = {c: (f"right_{c}" if c in overlapping_columns else c) for c in right_payload_columns}
 
             output_columns = left_columns + [renamed_right_columns[c] for c in right_payload_columns]
             output_data_lists = {c: [] for c in output_columns}
@@ -499,15 +495,15 @@ class PSO:
         
         # Create groups based on row combinations
         groups = {}
-        for i in range(num_rows):
-            # Create a key tuple with values from each grouping column for row i
-            key = tuple(self.data[col][i] for col in by)
+        for row_index in range(num_rows):
+            # Create a key tuple with values from each grouping column for row row_index
+            key = tuple(self.data[col][row_index] for col in by)
             
             if key not in groups:
                 groups[key] = []
             
             # Add the row index to this group
-            groups.setdefault(key,[]).append(i)
+            groups.setdefault(key,[]).append(row_index)
         
         return GroupBy(groups, self.data, by)
     
@@ -519,7 +515,6 @@ class PSO:
         ok, msg = _arg_checker(*args)
         if not ok:
             raise ValueError(f"Error in .single_filter(args): {msg}")
-            return
     
         operators = {"=", "!=", "<", ">", "<=", ">=", "=="}
         columns = set(self.data.keys())
@@ -575,10 +570,10 @@ class PSO:
                 if re.match(r'^-?\d+(?:\.\d*)?$', str(val)):
                     val = float(val) if '.' in str(val) else int(val)
     
-                for i, col_val in enumerate(col_vals):
+                for row_index, col_val in enumerate(col_vals):
                     try:
                         if operation[op](col_val, val):
-                            tempset.add(i)
+                            tempset.add(row_index)
                     except TypeError:
                         raise TypeError(f"Error in .single_filter(args): Incompatible comparator in clause '{col} {op} {val}'")
                 indexes.append(tempset)
@@ -604,7 +599,7 @@ class PSO:
         if chain:
             return final_indexes
         
-        output = {col: tuple(self.data[col][i] for i in sorted(final_indexes))
+        output = {col: tuple(self.data[col][row_index] for row_index in sorted(final_indexes))
                   for col in self.data}
     
         return PSO.parser(data = output)
@@ -618,13 +613,13 @@ class PSO:
         # find OR
         depth = 0
         split_pos = None
-        for i, char in enumerate(args):
+        for index, char in enumerate(args):
             if char == "(":
                 depth += 1
             elif char == ")":
                 depth -= 1
             elif char == "|" and depth == 0:
-                split_pos = i
+                split_pos = index
                 break
 
         if split_pos is not None:
@@ -654,13 +649,13 @@ class PSO:
         # if no OR, look for AND
         depth = 0
         split_pos = None
-        for i, char in enumerate(args):
+        for index, char in enumerate(args):
             if char == "(":
                 depth += 1
             elif char == ")":
                 depth -= 1
             elif char == "&" and depth == 0:
-                split_pos = i
+                split_pos = index
                 break
 
         if split_pos is not None:
@@ -734,7 +729,7 @@ class PSO:
                 if not inner_index_list:
                     return PSO.parser(data = empty)
 
-                output = {col: tuple(self.data[col][i] for i in inner_index_list) for col in self.data}
+                output = {col: tuple(self.data[col][row_index] for row_index in inner_index_list) for col in self.data}
                 return PSO.parser(data = output)
 
             return self.single_filter(args)
@@ -750,7 +745,7 @@ class PSO:
                 if not inner_index_list:
                     return PSO.parser(data = empty)
 
-                output = {col: tuple(self.data[col][i] for i in inner_index_list) for col in self.data}
+                output = {col: tuple(self.data[col][row_index] for row_index in inner_index_list) for col in self.data}
                 return PSO.parser(data = output)
             
             return self.single_filter(clause)
@@ -780,13 +775,13 @@ class PSO:
             depth = 0
             split_pos, operator = None, None
 
-            for i, char in enumerate(clause):
+            for index, char in enumerate(clause):
                 if char == "(":
                     depth += 1
                 elif char == ")":
                     depth -= 1
                 elif (char == "&" or char == "|") and depth == 0:
-                    split_pos = i
+                    split_pos = index
                     operator = char
                     break
 
@@ -816,8 +811,7 @@ class PSO:
         final_index = sorted(final_index)
 
         if not final_index:
-            empty = {col: tuple() for col in self.data}
             return PSO.parser(data = empty)
 
-        output = {col: tuple(self.data[col][i] for i in final_index) for col in self.data}
+        output = {col: tuple(self.data[col][row_index] for row_index in final_index) for col in self.data}
         return PSO.parser(data = output) 
