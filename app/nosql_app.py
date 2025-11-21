@@ -236,11 +236,11 @@ def group_by_params():
 
     if use_chunk:
         flatten_mode = st.selectbox(
-            "Aggregation scope",
-            ["Global across all chunks", "Per chunk (no flattening)"],
+            "GroupBy & Agg behavior on chunks (Flatten makes more sense)",
+            ["Flatten", "Per chunk (no flattening)"],
             key="nosql_groupby_flatten_mode",
         )
-        flatten_flag = (flatten_mode == "Global across all chunks")
+        flatten_flag = (flatten_mode == "Flatten")
     else:
         flatten_flag = True
 
@@ -293,11 +293,11 @@ def join_params():
 
     if use_chunk:
         join_scope = st.selectbox(
-            "Join scope",
-            ["Global across all chunks", "Per chunk (no flattening)"],
+            "Join behavior on chunks (flatten makes more sense)",
+            ["Flatten", "Join per chunk (no flattening)"],
             key="nosql_join_flatten_mode",
         )
-        flatten_flag = (join_scope == "Global across all chunks")
+        flatten_flag = (join_scope == "Flatten")
     else:
         flatten_flag = True
 
@@ -769,7 +769,6 @@ def step3():
             }
             break
 
-    # ---- Final result section (shown first) ----
     if error_info is not None:
         st.markdown("#### Final result (partial up to error)")
         st.error(f"Error at step {error_info['index']} ({error_info['op']}): {error_info['message']}")
@@ -782,14 +781,13 @@ def step3():
     if isinstance(pretty_target, list) and pretty_target and isinstance(pretty_target[0], dict):
         pretty_target = NoSql(pretty_target)
 
-    # Decide safe pretty-print limit
     limit = None
     if isinstance(pretty_target, NoSql) and hasattr(pretty_target, "data"):
         n_docs = len(pretty_target.data)
         if n_docs > 200:
-            limit = 200  # cap large results
+            limit = 200 
     else:
-        limit = 200  # non‑NoSql fallback safeguard
+        limit = 200  
 
     text = capture_pretty(pretty_target, dp_lim=limit)
 
@@ -798,7 +796,6 @@ def step3():
 
     st.code(text, language="text")
 
-    # ---- Per-step results in collapsible sections ----
     if step_results:
         st.markdown("---")
         st.markdown("#### Results after each step")
