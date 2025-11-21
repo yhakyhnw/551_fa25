@@ -184,14 +184,18 @@ def nosql_ds_sum(title, ns_obj):
 def nosql_step_desc(step):
     op_label = step.get("op", "")
     desc_parts = []
+    use_chunk = st.session_state.get("nosql_use_chunk", False)
 
     if op_label == "groupby_agg":
         group_cols_str = step.get("group_cols", "")
         agg_spec_str = step.get("agg_spec", "")
+        flatten_flag = step.get("flatten", True)
         if group_cols_str:
             desc_parts.append(f"group_by = {group_cols_str}")
         if agg_spec_str:
             desc_parts.append(f"agg = {agg_spec_str}")
+        if use_chunk:
+            desc_parts.append(f"flatten = {'global' if flatten_flag else 'per_chunk'}")
 
     elif op_label == "filter":
         expr_str = step.get("expr", "")
@@ -201,11 +205,13 @@ def nosql_step_desc(step):
     elif op_label == "join":
         left_on = step.get("left_on", "")
         right_on = step.get("right_on", "")
+        flatten_flag = step.get("flatten", True)
         if left_on:
             desc_parts.append(f"local_field = {left_on}")
         if right_on:
             desc_parts.append(f"foreign_field = {right_on}")
-
+        if use_chunk:
+            desc_parts.append(f"flatten = {'global' if flatten_flag else 'per_chunk'}")
 
     elif op_label == "project":
         cols_str = step.get("columns", "")
@@ -215,11 +221,10 @@ def nosql_step_desc(step):
     desc_text = " | ".join(desc_parts)
     return op_label, desc_text
 
-
-
-
 def group_by_params():
-    st.markdown("##### Configure group by + aggregate")
+    st.markdown("##### Configure Group By & Aggregate")
+
+    use_chunk = st.session_state.get("nosql_use_chunk", False)
 
     group_cols = st.text_input(
         "Group by fields (comma-separated)", key="nosql_groupby_cols_input"
@@ -229,26 +234,41 @@ def group_by_params():
         key="nosql_groupby_agg_input",
     )
 
-    if st.button("Confirm groupby+agg", key="nosql_confirm_groupby"):
+    if use_chunk:
+        flatten_mode = st.selectbox(
+            "Aggregation scope",
+            ["Global across all chunks", "Per chunk (no flattening)"],
+            key="nosql_groupby_flatten_mode",
+        )
+        flatten_flag = (flatten_mode == "Global across all chunks")
+    else:
+        flatten_flag = True
+
+    if st.button("Confirm Group By & Aggregate", key="nosql_confirm_groupby"):
         if "nosql_pipeline" not in st.session_state:
             st.session_state.nosql_pipeline = []
 
         st.session_state.nosql_pipeline.append(
-            {"op": "groupby_agg", "group_cols": group_cols, "agg_spec": agg_spec}
+            {
+                "op": "groupby_agg",
+                "group_cols": group_cols,
+                "agg_spec": agg_spec,
+                "flatten": flatten_flag,
+            }
         )
         st.success("Added groupby+agg to NoSQL pipeline.")
         st.rerun()
 
 
 def filter_params():
-    st.markdown("##### Configure filter")
+    st.markdown("##### Configure Filter")
 
     expr = st.text_input(
         "Filter expression (Mongo-style JSON predicate as string, or shorthand)",
         key="nosql_filter_expr_input",
     )
 
-    if st.button("Confirm filter", key="nosql_confirm_filter"):
+    if st.button("Confirm Filter", key="nosql_confirm_filter"):
         if "nosql_pipeline" not in st.session_state:
             st.session_state.nosql_pipeline = []
 
@@ -258,7 +278,9 @@ def filter_params():
 
 
 def join_params():
-    st.markdown("##### Configure join")
+    st.markdown("##### Configure Join")
+
+    use_chunk = st.session_state.get("nosql_use_chunk", False)
 
     left_on = st.text_input(
         "Local field (Dataset 1)",
@@ -269,7 +291,17 @@ def join_params():
         key="nosql_join_right_on_input",
     )
 
-    if st.button("Confirm join", key="nosql_confirm_join"):
+    if use_chunk:
+        join_scope = st.selectbox(
+            "Join scope",
+            ["Global across all chunks", "Per chunk (no flattening)"],
+            key="nosql_join_flatten_mode",
+        )
+        flatten_flag = (join_scope == "Global across all chunks")
+    else:
+        flatten_flag = True
+
+    if st.button("Confirm Join", key="nosql_confirm_join"):
         if "nosql_pipeline" not in st.session_state:
             st.session_state.nosql_pipeline = []
 
@@ -278,6 +310,7 @@ def join_params():
                 "op": "join",
                 "left_on": left_on,
                 "right_on": right_on,
+                "flatten": flatten_flag,
             }
         )
         st.success("Added join to NoSQL pipeline.")
@@ -285,13 +318,13 @@ def join_params():
 
 
 def project_params():
-    st.markdown("##### Configure projection")
+    st.markdown("##### Configure Project")
 
     cols = st.text_input(
         "Fields to keep (comma-separated)", key="nosql_project_cols_input"
     )
 
-    if st.button("Confirm projection", key="nosql_confirm_project"):
+    if st.button("Confirm Project", key="nosql_confirm_project"):
         if "nosql_pipeline" not in st.session_state:
             st.session_state.nosql_pipeline = []
 
@@ -451,45 +484,6 @@ def step2():
 
     demo_mode = st.session_state.get("nosql_demo_mode")
 
-    def _materialize_dataset(key: str):
-        obj = st.session_state.get(key)
-        if obj is None:
-            return None
-
-        # Already a single NoSql object
-        if isinstance(obj, NoSql):
-            return obj
-
-        # List/tuple of NoSql chunks
-        if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], NoSql):
-            merged_docs = []
-            for chunk in obj:
-                if hasattr(chunk, "data") and isinstance(chunk.data, list):
-                    merged_docs.extend(chunk.data)
-            ns = NoSql(merged_docs)
-            st.session_state[key] = ns
-            return ns
-
-        # Any other iterable (e.g., generator, itertools.tee) of NoSql chunks or dict docs
-        if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
-            merged_docs = []
-            try:
-                for chunk in obj:
-                    if isinstance(chunk, NoSql):
-                        if hasattr(chunk, "data") and isinstance(chunk.data, list):
-                            merged_docs.extend(chunk.data)
-                    elif isinstance(chunk, dict):
-                        merged_docs.append(chunk)
-            except TypeError:
-                # Not actually iterable in the way we expect; fall through
-                pass
-
-            if merged_docs:
-                ns = NoSql(merged_docs)
-                st.session_state[key] = ns
-                return ns
-
-        return None
 
     def _ensure_chunk_container(key: str):
 
@@ -532,9 +526,6 @@ def step2():
     if demo_mode == "2 dataset demo (join)" and overview2 is not None:
         nosql_ds_sum("Dataset 2", overview2)
 
-    # Materialize datasets for analysis (merge all chunks into single NoSql)
-    ns1 = _materialize_dataset("nosql_df1")
-    ns2 = _materialize_dataset("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
 
     # Initialize pipeline state if needed
     if "nosql_pipeline" not in st.session_state:
@@ -590,16 +581,33 @@ def step2():
         st.session_state.nosql_current_stage = 2
         st.rerun()
 
+    def _preview_target(obj):
+
+        if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], NoSql):
+            return NoSql(list(obj))
+        return obj
+
     st.markdown("---")
     st.markdown("#### Dataset Preview (first 3)")
     st.markdown("###### 'Document #' is not part of the file, just there for display")
-    if ns1 is not None:
-        st.markdown("**Dataset 1**")
-        st.code(capture_pretty(ns1, dp_lim=3), language="text")
 
-    if demo_mode == "2 dataset demo (join)" and ns2 is not None:
-        st.markdown("**Dataset 2**")
-        st.code(capture_pretty(ns2, dp_lim=3), language="text")
+    if demo_mode == "2 dataset demo (join)":
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+            if overview1 is not None:
+                st.markdown("**Dataset 1**")
+                st.code(capture_pretty(_preview_target(overview1), dp_lim=3), language="text")
+
+        with col_right:
+            if overview2 is not None:
+                st.markdown("**Dataset 2**")
+                st.code(capture_pretty(_preview_target(overview2), dp_lim=3), language="text")
+    else:
+        if overview1 is not None:
+            st.markdown("**Dataset 1**")
+            st.code(capture_pretty(_preview_target(overview1), dp_lim=3), language="text")
+
 
 def step3():
     st.markdown("### Step 3: Results Display (NoSQL)")
@@ -615,45 +623,18 @@ def step3():
             return NoSql(obj)
         return obj
 
-    def _materialize_dataset(key: str):
+    obj1 = st.session_state.get("nosql_df1")
+    obj2 = st.session_state.get("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
 
-        obj = st.session_state.get(key)
-        if obj is None:
-            return None
-
+    def _wrap_nosql(obj):
         if isinstance(obj, NoSql):
             return obj
-
         if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], NoSql):
-            merged_docs = []
-            for chunk in obj:
-                if hasattr(chunk, "data") and isinstance(chunk.data, list):
-                    merged_docs.extend(chunk.data)
-            ns = NoSql(merged_docs)
-            st.session_state[key] = ns
-            return ns
-
-        if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
-            merged_docs = []
-            try:
-                for chunk in obj:
-                    if isinstance(chunk, NoSql):
-                        if hasattr(chunk, "data") and isinstance(chunk.data, list):
-                            merged_docs.extend(chunk.data)
-                    elif isinstance(chunk, dict):
-                        merged_docs.append(chunk)
-            except TypeError:
-                pass
-
-            if merged_docs:
-                ns = NoSql(merged_docs)
-                st.session_state[key] = ns
-                return ns
-
+            return NoSql(list(obj))
         return None
 
-    ns1 = _materialize_dataset("nosql_df1")
-    ns2 = _materialize_dataset("nosql_df2") if demo_mode == "2 dataset demo (join)" else None
+    ns1 = _wrap_nosql(obj1)
+    ns2 = _wrap_nosql(obj2) if obj2 is not None else None
 
     if ns1 is None or not isinstance(ns1, NoSql):
         st.error("Dataset 1 is not available or not a valid NoSql object. Please complete Step 1.")
@@ -671,19 +652,15 @@ def step3():
             st.code(capture_pretty(ns2, dp_lim=5), language="text")
         return
 
-    st.markdown("#### Current pipeline")
-    st.markdown("---")
-
+    # New implementation: compute all steps first, then show final result, then per-step results in expanders
     current = ns1
+    step_results = []
+    error_info = None
 
     for step_index, step in enumerate(pipeline, start=1):
         op_label, desc_text = nosql_step_desc(step)
         if not op_label:
             op_label = f"step {step_index}"
-
-        st.markdown(f"**Step {step_index}: {op_label}**")
-        if desc_text:
-            st.caption(desc_text)
 
         op = step.get("op")
 
@@ -713,13 +690,14 @@ def step3():
                 if agg_param is None:
                     agg_param = {"*": ["count"]}
 
-                result = current.aggregate(group_fields or None, agg_param)
+                flatten_flag = step.get("flatten", True)
+                result = current.aggregate(group_fields or None, agg_param, flatten=flatten_flag)
                 current = _normalize_result(result)
 
             elif op == "filter":
                 expr_raw = step.get("expr", "")
                 if not expr_raw.strip():
-                    st.warning("Empty filter expression; skipping this step.")
+                    # Skip empty filter but do not treat as error
                     continue
                 try:
                     import ast
@@ -731,29 +709,29 @@ def step3():
 
             elif op == "join":
                 if demo_mode != "2 dataset demo (join)":
-                    st.warning("Join step ignored because demo mode is not '2 dataset demo (join)'.")
+                    # Skip join if demo mode is incompatible
                     continue
 
                 if ns2 is None or not isinstance(ns2, NoSql):
-                    st.error("Join requested but Dataset 2 is not available or not a valid NoSql object.")
-                    return
+                    raise ValueError("Join requested but Dataset 2 is not available or not a valid NoSql object.")
 
                 left_on = step.get("left_on", "").strip()
                 right_on = step.get("right_on", "").strip()
 
                 if not left_on:
-                    st.error("Join step missing local_field (Dataset 1).")
-                    return
+                    raise ValueError("Join step missing local_field (Dataset 1).")
 
                 if not right_on:
                     # If foreign field is omitted, default to same as local
                     right_on = left_on
 
+                flatten_flag = step.get("flatten", True)
                 result = current.join(
                     from_field=ns2,
                     local_field=left_on,
                     foreign_field=right_on,
                     as_field="joined",
+                    flatten=flatten_flag,
                 )
                 current = _normalize_result(result)
 
@@ -761,29 +739,48 @@ def step3():
                 cols_str = step.get("columns", "")
                 fields = [c.strip() for c in cols_str.split(",") if c.strip()]
                 if not fields:
-                    st.warning("Projection step has no fields specified; skipping this step.")
+                    # Skip empty projection; not an error
                     continue
                 proj_dict = {name: 1 for name in fields}
                 result = current.project(proj_dict)
                 current = _normalize_result(result)
 
             else:
-                st.warning(f"Unknown operation '{op}' encountered; skipping.")
+                # Unknown op: skip
                 continue
 
+            # Store intermediate result for later display
+            step_results.append(
+                {
+                    "index": step_index,
+                    "op_label": op_label,
+                    "desc": desc_text,
+                    "result": current,
+                    "op": op,
+                }
+            )
+
         except Exception as error:
-            st.error(f"Error at step {step_index} ({op}): {error}")
-            st.markdown("---")
-            st.markdown("#### Partial result up to error (pretty-printed)")
-            st.code(capture_pretty(current, dp_lim=5), language="text")
-            return
+            error_info = {
+                "index": step_index,
+                "op": op,
+                "message": str(error),
+                "current": current,
+            }
+            break
 
-    st.markdown("#### Final result")
+    # ---- Final result section (shown first) ----
+    if error_info is not None:
+        st.markdown("#### Final result (partial up to error)")
+        st.error(f"Error at step {error_info['index']} ({error_info['op']}): {error_info['message']}")
+        final_obj = error_info["current"]
+    else:
+        st.markdown("#### Final result")
+        final_obj = current
 
-    # If result is a list of dicts, wrap in NoSql so pretty_print_nosql can format it nicely
-    pretty_target = current
-    if isinstance(current, list) and current and isinstance(current[0], dict):
-        pretty_target = NoSql(current)
+    pretty_target = final_obj
+    if isinstance(pretty_target, list) and pretty_target and isinstance(pretty_target[0], dict):
+        pretty_target = NoSql(pretty_target)
 
     # Decide safe pretty-print limit
     limit = None
@@ -800,6 +797,17 @@ def step3():
         st.caption(f"Showing first {limit} documents (full result truncated).")
 
     st.code(text, language="text")
+
+    # ---- Per-step results in collapsible sections ----
+    if step_results:
+        st.markdown("---")
+        st.markdown("#### Results after each step")
+        for info in step_results:
+            label = f"Step {info['index']}: {info['op_label']}"
+            with st.expander(label, expanded=False):
+                if info["desc"]:
+                    st.caption(info["desc"])
+                st.code(capture_pretty(info["result"], dp_lim=5), language="text")
 
 
 def main():

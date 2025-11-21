@@ -88,7 +88,18 @@ class NoSql:
         return self.project({k: 1 for k in fields})
 
     def project(self, keys) -> "NoSql":
-        docs = self._ensure_flat_docs(self.data)
+
+        data = self.data
+
+        # Chunked case: list/tuple of NoSql chunks
+        if isinstance(data, (list, tuple)) and data and all(isinstance(ch, NoSql) for ch in data):
+            projected_chunks = []
+            for ch in data:
+                projected_chunks.append(ch.project(keys))
+            return NoSql(projected_chunks)
+
+        # Flat / non-chunked case
+        docs = self._ensure_flat_docs(data)
         if not isinstance(keys, dict):
             raise TypeError("Projection keys must be a dict")
         if not keys:
@@ -98,14 +109,14 @@ class NoSql:
 
         vals = set(keys.values())
 
-        if not vals.issubset({0,1}):
-            raise ValueError("Projectio values must be 0 or 1")
+        if not vals.issubset({0, 1}):
+            raise ValueError("Projection values must be 0 or 1")
 
         is_inclusive = 1 in vals and 0 not in vals
         is_exclusive = 0 in vals and 1 not in vals
 
         if not (is_inclusive or is_exclusive):
-            raise ValueError("Do not mix inclusive and exclusive in one proejction")
+            raise ValueError("Do not mix inclusive and exclusive in one projection")
 
         projected = []
         if is_inclusive:
@@ -116,6 +127,7 @@ class NoSql:
             for doc in docs:
                 subset = {k: v for k, v in doc.items() if k not in list(keys.keys())}
                 projected.append(subset)
+
         return NoSql(projected)
     
     @classmethod
@@ -335,61 +347,79 @@ class NoSql:
             return False, s[5:]
         return cls._parse_number(s)
 
-    def join(self, from_field: "NoSql", local_field: str, foreign_field: str, as_field: str) -> "NoSql":
-        
+    def join(self, from_field: "NoSql", local_field: str, foreign_field: str, as_field: str, flatten: bool = True) -> "NoSql":
         if not isinstance(from_field, NoSql):
             raise TypeError("from_field must be a NoSql object")
-        
+
         for name, val in (("local_field", local_field), ("foreign_field", foreign_field), ("as_field", as_field)):
             if not isinstance(val, str):
                 raise TypeError(f"{name} must be a string")
             if name == "as_field" and not val:
                 raise ValueError("as_field must be a non-empty string")
 
-        if not self.data:
-            return NoSql([])
-
-        left_docs = self._ensure_flat_docs(self.data)
+        # Prepare right-side docs (dimension table)
         right_docs = self._ensure_flat_docs(from_field.data)
 
+        # Build index ONCE from right_docs
+        right_index = {}
         def _get_value(doc, path):
             fields = path.split('.')
             cur = doc
             for field in fields:
-                if isinstance(cur, dict) and field in cur: # Only consider key, value pair case
+                if isinstance(cur, dict) and field in cur:
                     cur = cur[field]
                 else:
                     return None
-            
             if isinstance(cur, (list, tuple, dict)):
                 return None
-            
             return cur
-        
-        right_index = {}
-        for rdoc in right_docs:
-            foreign_val = _get_value(rdoc, foreign_field)
-            if foreign_val is None:
-                continue
-            right_index[foreign_val] = rdoc
 
+        for rdoc in right_docs:
+            key_val = _get_value(rdoc, foreign_field)
+            if key_val is not None:
+                right_index[key_val] = rdoc
+
+        data = self.data
+
+        # Case 1: chunked left side and flatten=False => streaming join
+        if isinstance(data, (list, tuple)) and data and all(isinstance(ch, NoSql) for ch in data) and not flatten:
+            joined_chunks = []
+            for ch in data:
+                left_docs = self._ensure_flat_docs(ch.data)
+                chunk_joined = []
+                for ldoc in left_docs:
+                    local_val = _get_value(ldoc, local_field)
+                    new_doc = dict(ldoc)
+                    match = right_index.get(local_val)
+                    if match is None:
+                        new_doc[as_field] = None
+                    else:
+                        new_doc[as_field] = dict(match)
+                        for k, v in match.items():
+                            new_doc[f"{as_field}.{k}"] = v
+                    chunk_joined.append(new_doc)
+                joined_chunks.append(NoSql(chunk_joined))
+            return NoSql(joined_chunks)
+
+        # Case 2: chunked left and flatten=True => global join
+        if isinstance(data, (list, tuple)) and data and all(isinstance(ch, NoSql) for ch in data):
+            left_docs = self._ensure_flat_docs(data)
+        else:
+            # Non-chunked left
+            left_docs = self._ensure_flat_docs(data)
+
+        # Global join (normal)
         joined = []
         for ldoc in left_docs:
             local_val = _get_value(ldoc, local_field)
             new_doc = dict(ldoc)
-
-            match = None
-            if local_val is not None:
-                match = right_index.get(local_val)
-
+            match = right_index.get(local_val)
             if match is None:
-                # No match: keep an explicit None for the joined field
                 new_doc[as_field] = None
             else:
                 new_doc[as_field] = dict(match)
                 for k, v in match.items():
                     new_doc[f"{as_field}.{k}"] = v
-
             joined.append(new_doc)
 
         return NoSql(joined)
@@ -427,8 +457,24 @@ class NoSql:
         return docs
 
 
-    def group_by(self, keys):
-        docs = self._ensure_flat_docs(self.data)
+    def group_by(self, keys, flatten: bool = True):
+
+        data = self.data
+
+        # Chunked case: list/tuple of NoSql chunks
+        if isinstance(data, (list, tuple)) and data and all(isinstance(ch, NoSql) for ch in data):
+            if not flatten:
+                # Per-chunk group_by, keep results separated
+                per_chunk_results = []
+                for ch in data:
+                    per_chunk_results.append(ch.group_by(keys, flatten=True))
+                return per_chunk_results
+
+            # flatten=True: group across all chunks
+            docs = self._ensure_flat_docs(data)
+        else:
+            # Non-chunked case
+            docs = self._ensure_flat_docs(data)
 
         # Normalize keys
         if isinstance(keys, str):
@@ -452,8 +498,22 @@ class NoSql:
         return out
 
 
-    def aggregate(self, group_keys, agg_spec):
-        docs = self._ensure_flat_docs(self.data)
+    def aggregate(self, group_keys, agg_spec, flatten: bool = True):
+
+        data = self.data
+
+        if isinstance(data, (list, tuple)) and data and all(isinstance(ch, NoSql) for ch in data):
+            if not flatten:
+                # Per-chunk aggregate, keep results separated
+                per_chunk_results = []
+                for ch in data:
+                    per_chunk_results.append(ch.aggregate(group_keys, agg_spec, flatten=True))
+                return per_chunk_results
+
+            docs = self._ensure_flat_docs(data)
+        else:
+            # Non-chunked case
+            docs = self._ensure_flat_docs(data)
 
         # Normalize group keys
         if isinstance(group_keys, str):
@@ -512,19 +572,6 @@ class NoSql:
 
         return result
 
-    @classmethod
-    def filter_auto(cls, source, query):
-
-        if isinstance(source, NoSql):
-            return source.filter(query)
-
-        def _generator():
-            for chunk in source:
-                if not isinstance(chunk, NoSql):
-                    raise TypeError("filter_auto iterable must yield NoSql objects")
-                yield chunk.filter(query)
-
-        return _generator()
     
     def single_filter(self, key, condition, chain = False):
         if not isinstance(key, str):
@@ -649,12 +696,10 @@ class NoSql:
             has_and = "$and" in node
             has_or = "$or" in node
 
-            # Logical node: exactly one of $and / $or at this level
             if has_and or has_or:
                 if has_and and has_or:
                     raise ValueError("A query level cannot contain both $and and $or")
 
-                # Disallow mixing logical operator with other keys at same level
                 if len(node) != 1:
                     raise ValueError("When using $and or $or at a level, no other keys are allowed")
 
@@ -698,7 +743,14 @@ class NoSql:
 
     def filter(self, query) -> "NoSql":
 
-        docs = self._ensure_flat_docs(self.data)
+        data = self.data
+        if isinstance(data, (list, tuple)) and data and all(isinstance(ch, NoSql) for ch in data):
+            filtered_chunks = []
+            for ch in data:
+                filtered_chunks.append(ch.filter(query))
+            return NoSql(filtered_chunks)
+
+        docs = self._ensure_flat_docs(data)
         if not docs:
             return NoSql([])
 
@@ -759,8 +811,8 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
                 return base_indent + "{}"
 
             lines = [base_indent + "{"]
-            for idx, (key, val) in enumerate(items):
-                is_last = (idx == len(items) - 1)
+            for index, (key, val) in enumerate(items):
+                is_last = (index == len(items) - 1)
 
                 if isinstance(val, (dict, list)):
                     lines.append(f"{inner_indent}{key}:")
@@ -784,8 +836,8 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
                 return base_indent + "[]"
 
             lines = [base_indent + "["]
-            for idx, item in enumerate(value):
-                is_last = (idx == len(value) - 1)
+            for index, item in enumerate(value):
+                is_last = (index == len(value) - 1)
 
                 if isinstance(item, (dict, list)):
                     nested_block = _pretty_value(item, indent_level + indent_spaces)
@@ -804,17 +856,24 @@ def pretty_print_nosql(ns_obj, indent_spaces: int = 4, dp_lim: int | None = None
 
         return base_indent + repr(value)
 
-    # Determine which docs to print
-    if ns_obj.data and all(isinstance(chunk, NoSql) for chunk in ns_obj.data):
-        first_chunk = ns_obj.data[0]
-        if not isinstance(first_chunk, NoSql):
-            raise TypeError("First chunk is not a NoSql object")
-        if not isinstance(first_chunk.data, list) or not all(isinstance(d, dict) for d in first_chunk.data):
-            raise TypeError("First chunk's data is not a list of dicts")
-        docs_to_iter = first_chunk.data
-    else:
-        docs_to_iter = ns_obj.data
+    data = ns_obj.data
 
+    if data and isinstance(data, (list, tuple)) and all(isinstance(chunk, NoSql) for chunk in data):
+        for chunk_idx, chunk in enumerate(data, 1):
+            print(f"Chunk {chunk_idx}:")
+
+            if not isinstance(chunk.data, list) or not all(isinstance(d, dict) for d in chunk.data):
+                raise TypeError("Each chunk's data must be a list of dicts")
+            
+            docs_to_iter = chunk.data
+            for doc_index, doc in enumerate(docs_to_iter, 1):
+                if dp_lim is not None and doc_index > dp_lim:
+                    break
+                pretty_doc = _pretty_value(doc, 0)
+                print(f"Document {doc_index}: {pretty_doc}")
+        return
+
+    docs_to_iter = data
     for doc_index, doc in enumerate(docs_to_iter, 1):
         if dp_lim is not None and doc_index > dp_lim:
             break
