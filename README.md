@@ -42,6 +42,29 @@ Use Streamlit link:
    ```
    streamlit run full_app.py
    ```
+
+## 5. Featured Functions
+
+### **NoSQL Engine**  
+Supports both standard and chunked (streaming-style) operations: <br>
+Note: only accepts .json filetypes
+
+- **Projection** — select specific fields  
+- **Filter** — MongoDB‑style query expressions  
+- **Join** — field‑based document matching  
+- **Group By** — group documents by one or more keys  
+- **Aggregate** — apply numerical aggregations (sum, mean, min, max, count)
+
+### **SQL Engine**  
+Implements core relational operations similar to traditional SQL: <br>
+Note: only accepts .csv filetypes
+
+- **SELECT (Projection)** — choose specific columns  
+- **WHERE (Filter)** — conditional row filtering  
+- **JOIN** — combine rows across tables  
+- **GROUP BY** — group rows by key  
+- **HAVING (Aggregate)** — numerical computations on grouped results
+
 ## Authors
 
 Yonghoon Kim <br>
