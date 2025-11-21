@@ -34,6 +34,6 @@ command to run if program contains helper info
 
 ## Authors
 
-Yonghoon Kim
-DaeYong Han
-WooSeob Sim
+Yonghoon Kim <br>
+DaeYong Han <br>
+WooSeob Sim <br>
