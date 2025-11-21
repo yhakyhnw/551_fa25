@@ -1,7 +1,6 @@
 import tempfile
 import io, os, sys
 import contextlib
-import itertools
 import streamlit as st
 
 base_directory = os.path.dirname(os.path.abspath(__file__))
@@ -235,12 +234,8 @@ def group_by_params():
     )
 
     if use_chunk:
-        flatten_mode = st.selectbox(
-            "GroupBy & Agg behavior on chunks (Flatten makes more sense)",
-            ["Flatten", "Per chunk (no flattening)"],
-            key="nosql_groupby_flatten_mode",
-        )
-        flatten_flag = (flatten_mode == "Flatten")
+        chunk_behavior = st.session_state.get("nosql_chunk_behavior", "Flatten")
+        flatten_flag = (chunk_behavior == "Flatten")
     else:
         flatten_flag = True
 
@@ -292,12 +287,8 @@ def join_params():
     )
 
     if use_chunk:
-        join_scope = st.selectbox(
-            "Join behavior on chunks (flatten makes more sense)",
-            ["Flatten", "Join per chunk (no flattening)"],
-            key="nosql_join_flatten_mode",
-        )
-        flatten_flag = (join_scope == "Flatten")
+        chunk_behavior = st.session_state.get("nosql_chunk_behavior", "Flatten")
+        flatten_flag = (chunk_behavior == "Flatten")
     else:
         flatten_flag = True
 
@@ -532,6 +523,27 @@ def step2():
         st.session_state.nosql_pipeline = []
 
     pipeline = st.session_state.get("nosql_pipeline", [])
+
+    # chunk behavior
+    use_chunk = st.session_state.get("nosql_use_chunk", False)
+
+    st.markdown("---")
+    st.markdown("##### Chunk behavior for operations on chunks")
+    st.markdown("###### Default behavior is flatten since this makes more sense.")
+
+    options = ["Flatten", "Per chunk (no flattening)"]
+    current_behavior = st.session_state.get("nosql_chunk_behavior", "Flatten")
+    if current_behavior not in options:
+        current_behavior = "Flatten"
+
+    chunk_behavior = st.selectbox(
+        "How should Group By & Aggregate and Join treat chunks?",
+        options,
+        index = options.index(current_behavior),
+        key = "nosql_global_chunk_behavior",
+        disabled = not use_chunk,
+    )
+    st.session_state["nosql_chunk_behavior"] = chunk_behavior
 
     st.markdown("---")
     st.markdown("#### Add functions to pipeline (minimum 1 required)")
@@ -848,7 +860,6 @@ def main():
         step2()
     elif current_stage == 2:
         step3()
-
 
 if __name__ == "__main__":
     main()
