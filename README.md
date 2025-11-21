@@ -59,8 +59,8 @@ Note: only accepts .json filetypes
 Implements core relational operations similar to traditional SQL: <br>
 Note: only accepts .csv filetypes
 
-- **Project (like SELECT)** — choose specific columns  
-- **Filter (like WHERE)** — row filtering based on condition
+- **Project** — choose specific columns  
+- **Filter** — row filtering based on condition
 - **Join** — combine rows across tables 
 - **Group_by** — group rows by key  
 - **Aggregate** — numerical aggregations (sum, mean, min, max, count)
