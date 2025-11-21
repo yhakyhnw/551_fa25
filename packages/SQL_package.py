@@ -119,11 +119,19 @@ class GroupBy:
                 continue
             if key not in self.data:
                 raise ValueError(f"Error in .agg(agg): column '{key}' not found")
+
+            # Enforce numeric-only aggregation for non-count operations
+            is_numeric_col = _col_is_numeric(self.data[key])
+
             final_plan.setdefault(key, [])
             for op in ops:
+                if op != "count" and not is_numeric_col:
+                    raise ValueError(
+                        f"Error in .agg(agg): column '{key}' is not numeric and cannot be aggregated with '{op}'"
+                    )
                 if op not in final_plan[key]:
                     final_plan[key].append(op)
-
+                    
         # All numeric columns
         if '*' in spec:
             for col in numeric_cols:
