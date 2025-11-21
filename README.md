@@ -10,12 +10,27 @@ An in-depth paragraph about your project and overview of use.
 
 ### Dependencies
 
-streamlit, os, sys
+streamlit, io, os, sys, re, typing
 
-### Installing
+### Folder Infrastructure
 
-* How/where to download your program
-* Any modifications needed to be made to files/folders
+- The **app/** directory contains the Streamlit application files:
+  - `full_py.py` — combined full application  
+  - `nosql_app.py` — NoSQL interface  
+  - `sql_app.py` — SQL interface  
+
+- The **packages/** directory contains the core processing modules:
+  - `NoSQL_package.py` — NoSQL data engine  
+  - `SQL_package.py` — SQL-like in-memory data engine  
+
+app/
+  full_py.py
+  nosql_app.py
+  sql_app.py
+
+packages/
+  NoSQL_package.py
+  SQL_package.py
 
 ### Executing program
 
