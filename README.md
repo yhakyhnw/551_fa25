@@ -1,12 +1,12 @@
 # DSCI 551 Fall 2025 Project
 
-**Project Objective:** <br>
-Understand what happens under the hood of SQL and NoSQL functions. 
-
+USC Fall 2025 DSCI 551 <br>
+Instructor: WenSheng Wu
 
 ## 1. Description
 
-An in-depth paragraph about your project and overview of use.
+**Project Objective:** <br>
+Understand what happens under the hood of SQL and NoSQL functions. 
 
 ## 2. Dependencies
 
