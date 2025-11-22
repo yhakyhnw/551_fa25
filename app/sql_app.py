@@ -569,7 +569,7 @@ def step3():
             return
 
         try:
-            snapshot = current._repr_with_limit(dp_lim = -1)
+            snapshot = str(current)
         except Exception:
             snapshot = str(current)
 
