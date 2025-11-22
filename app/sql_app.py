@@ -569,17 +569,17 @@ def step3():
             return
 
         try:
-            snapshot = str(current)
+            snapshot = current._repr_with_limit(dp_lim = -1)
         except Exception:
-            snapshot = current
+            snapshot = str(current)
 
         step_results.append((step_num, op, desc_text, snapshot))
 
     st.markdown("#### Final result")
     try:
-        st.code(str(current), language = "text")
+        st.code(current._repr_with_limit(dp_lim = -1), language = "text")
     except Exception:
-        st.code(current, language = "text")
+        st.code(str(current), language = "text")
 
     st.markdown("---")
     st.markdown("#### Results after each step")

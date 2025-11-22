@@ -305,14 +305,18 @@ class PSO:
 
         return cls(data_dict, header, encoding = encoding, delimiter = delimiter)
             
-    def __repr__(self):
+    def _repr_with_limit(self, dp_lim: int = 20) -> str:
         if not self.data:
             return "Empty PSO()"
-    
+
         cols = list(self.data.keys())
         num_rows = len(next(iter(self.data.values())))
-        display_limit = 20
-    
+
+        if dp_lim is None or dp_lim < 0:
+            display_limit = num_rows
+        else:
+            display_limit = dp_lim
+
         rows = []
         for row_index in range(num_rows):
             row = []
@@ -323,7 +327,7 @@ class PSO:
                 else:
                     row.append("")
             rows.append(row)
-    
+
         if num_rows > display_limit:
             limited_rows = []
             for row in rows[:display_limit]:
@@ -332,15 +336,14 @@ class PSO:
             dots_row = []
             for _ in cols:
                 dots_row.append("...")
-            
+
             limited_rows.append(dots_row)
             rows = limited_rows
-    
+
         col_widths = {}
         for col in cols:
             header_len = len(col)
 
-            # compute max_val_len with expanded loop
             max_val_len = 0
             for value in self.data[col]:
                 if value is None:
@@ -357,19 +360,19 @@ class PSO:
                 col_widths[col] = max_val_len
             else:
                 col_widths[col] = 4
-    
+
         header_parts = []
         for col in cols:
             header_parts.append(col.ljust(col_widths[col]))
 
         header_str = " | ".join(header_parts)
-        
+
         sep_parts = []
         for col in cols:
             sep_parts.append("-" * col_widths[col])
 
         sep_str = "-+-".join(sep_parts)
-        
+
         row_strs = []
         for row in rows:
             padded_values = []
@@ -377,13 +380,16 @@ class PSO:
                 padded_values.append(row[col_index].ljust(col_widths[cols[col_index]]))
             row_str = " | ".join(padded_values)
             row_strs.append(row_str)
-            
+
         table = header_str + "\n" + sep_str
 
         for rs in row_strs:
             table = table + "\n" + rs
-            
+
         return table
+
+    def __repr__(self) -> str:
+        return self._repr_with_limit(dp_lim = 20)
     
     """
     Function 1: Project
