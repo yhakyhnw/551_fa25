@@ -9,10 +9,13 @@ Helper functions
 def _get_header(file, encoding, delimiter) -> list:
     if not os.path.exists(file):
         raise FileNotFoundError(f"Error: '{file}' does not exist")
-        
-    with open(file, "r", encoding = encoding) as f_in:
-        first_line = f_in.readline().strip()
-    
+
+    try:
+        with open(file, "r", encoding = encoding) as f_in:
+            first_line = f_in.readline().strip()
+    except LookupError:
+        raise ValueError(f"Error in PSO.parser: unknown encoding '{encoding}'")
+
     return first_line.split(delimiter)
 
 def _arg_checker(*args):
@@ -263,7 +266,12 @@ class PSO:
         if file is None or expected == 0:
             return cls({header_ind: tuple() for header_ind in header}, header, encoding = encoding, delimiter = delimiter)
 
-        with open(file, "r", encoding = encoding) as f_in:
+        try:
+            f_in = open(file, "r", encoding = encoding)
+        except LookupError:
+            raise ValueError(f"Error in PSO.parser: unknown encoding '{encoding}'")
+        
+        with f_in:
             _ = f_in.readline()
             for line in f_in:
                 line = line.strip()
