@@ -122,7 +122,7 @@ def parser_params(label):
                               value = st.session_state.parser_delimiter, max_chars = 1, 
                               key = f"delimiter_{label}")
 
-    header_str = st.text_input("Header override (comma-separated, optional)", 
+    header_str = st.text_input("Header override (comma separated, optional)", 
                                value = "", 
                                key = f"header_{label}")
 

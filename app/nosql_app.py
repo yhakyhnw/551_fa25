@@ -287,7 +287,7 @@ def join_params():
 def project_params():
     st.markdown("##### Configure Project")
 
-    cols = st.text_input("Fields to keep (comma-separated)", key = "nosql_project_cols_input")
+    cols = st.text_input("Fields to keep (comma separated)", key = "nosql_project_cols_input")
 
     if st.button("Confirm Project", key = "nosql_confirm_project"):
         if "nosql_pipeline" not in st.session_state:
