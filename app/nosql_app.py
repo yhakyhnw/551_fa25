@@ -224,7 +224,7 @@ def group_by_params():
 
     group_cols = st.text_input("Group by (comma separated)", key = "nosql_groupby_cols_input")
 
-    agg_spec = st.text_input("Aggregation [mean|avg, max, min, count, sum]  \n(e.g. if looking for mean salary per group, salary:mean creates a salary_mean key)", key = "nosql_groupby_agg_input")
+    agg_spec = st.text_input("Aggregation [mean|avg, max, min, count, sum]  \n(note: if looking for mean salary per group, salary:mean creates a salary_mean key)", key = "nosql_groupby_agg_input")
 
     if use_chunk:
         chunk_behavior = st.session_state.get("nosql_chunk_behavior", "Flatten")
