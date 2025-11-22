@@ -231,8 +231,8 @@ def step1():
 def groupby_agg_params():
     st.markdown("##### Configure Group By & Aggregate")
     
-    group_cols = st.text_input("Group by columns (comma separated)", key = "groupby_cols_input")
-    agg_spec = st.text_input("Aggregation spec (e.g. Founded:mean)", key = "groupby_agg_input")
+    group_cols = st.text_input("Group by (comma separated)", key = "groupby_cols_input")
+    agg_spec = st.text_input("Aggregation [mean|avg, max, min, count, sum]  \n(e.g. if looking for average Founded per group, Founded:avg creates a Founded_avg key)", key = "groupby_agg_input")
 
     if st.button("Confirm Group By & Agg"):
 
@@ -262,8 +262,8 @@ def filter_params():
         st.rerun()
 
 def join_params():
-    st.markdown("##### Configure Hoin")
-    
+    st.markdown("##### Configure Join")
+
     left_on = st.text_input("Left key column (Dataset 1)", key = "join_left_on_input")
     right_on = st.text_input("Right key column (Dataset 2)", key = "join_right_on_input")
     join_type = st.text_input("Join type (inner, left, right, outer)", value = "inner", key = "join_type_input")

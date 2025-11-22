@@ -222,9 +222,9 @@ def group_by_params():
 
     use_chunk = st.session_state.get("nosql_use_chunk", False)
 
-    group_cols = st.text_input("Group by fields (comma-separated)", key = "nosql_groupby_cols_input")
+    group_cols = st.text_input("Group by (comma separated)", key = "nosql_groupby_cols_input")
 
-    agg_spec = st.text_input("Aggregation spec (e.g. price:sum,qty:avg, *:count)", key = "nosql_groupby_agg_input")
+    agg_spec = st.text_input("Aggregation [mean|avg, max, min, count, sum]  \n(e.g. if looking for mean salary per group, salary:mean creates a salary_mean key)", key = "nosql_groupby_agg_input")
 
     if use_chunk:
         chunk_behavior = st.session_state.get("nosql_chunk_behavior", "Flatten")
@@ -259,6 +259,7 @@ def filter_params():
 
 def join_params():
     st.markdown("##### Configure Join")
+    st.text("Join will create a flattened key based on right side  \ne.g. joining 'company_location' and 'code' => joined.code")
 
     use_chunk = st.session_state.get("nosql_use_chunk", False)
 
@@ -703,23 +704,11 @@ def step3():
             else:
                 continue
 
-            step_results.append(
-                {
-                    "index": step_index,
-                    "op_label": op_label,
-                    "desc": desc_text,
-                    "result": current,
-                    "op": op,
-                }
-            )
+            step_results.append({"index": step_index, "op_label": op_label,"desc": desc_text,
+                                 "result": current, "op": op})
 
         except Exception as error:
-            error_info = {
-                "index": step_index,
-                "op": op,
-                "message": str(error),
-                "current": current,
-            }
+            error_info = {"index": step_index, "op": op, "message": str(error), "current": current}
             break
 
     if error_info is not None:
