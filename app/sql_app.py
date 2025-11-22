@@ -232,7 +232,7 @@ def groupby_agg_params():
     st.markdown("##### Configure Group By & Aggregate")
     
     group_cols = st.text_input("Group by (comma separated)", key = "groupby_cols_input")
-    agg_spec = st.text_input("Aggregation [mean|avg, max, min, count, sum]  \n(note: if looking for average Founded per group, Founded:avg creates a Founded_avg key)", key = "groupby_agg_input")
+    agg_spec = st.text_input("Aggregation [mean|avg, max, min, count, sum]  \n(note: if looking for average Founded per group, Founded:avg creates a Founded_avg column)", key = "groupby_agg_input")
 
     if st.button("Confirm Group By & Agg"):
 
